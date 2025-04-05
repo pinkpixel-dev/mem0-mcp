@@ -160,12 +160,15 @@ Example configuration using `DEFAULT_USER_ID`:
 {
   "mcpServers": {
     "mem0-mcp": {
-      // ... command and args ...
+      "command": "npx",
+      "args": [
+        "-y",
+        "@pinkpixel/mem0-mcp"
+      ],
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
-        "DEFAULT_USER_ID": "user123" // Example default user
+        "DEFAULT_USER_ID": "user123" 
       },
-      // ... rest of config ...
     }
   }
 }
@@ -174,7 +177,27 @@ Example configuration using `DEFAULT_USER_ID`:
 Or when running directly with `node`:
 
 ```bash
-DEFAULT_USER_ID="user123" MEM0_API_KEY="YOUR_KEY" node /path/to/mem0-mcp/build/index.js
+git clone https://github.com/pinkpixel-dev/mem0-mcp 
+cd mem0-mcp
+npm install
+npm run build
+```
+
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "node",
+      "args": [
+        "path/to/mem0-mcp/build/index.js"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123" 
+      },
+    }
+  }
+}
 ```
 
 ## Cloud vs. Local Storage 🔄
@@ -342,7 +365,6 @@ The server recognizes several environment variables that control its behavior:
 - `MEM0_API_KEY`: API key for cloud storage mode
 - `OPENAI_API_KEY`: API key for local storage mode (embeddings)
 - `DEFAULT_USER_ID`: Default user ID for memory operations
-- `LOG_LEVEL`, `DEBUG`, `SILENT`: Various logging controls
 
 ---
 
