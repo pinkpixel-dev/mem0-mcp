@@ -81,6 +81,38 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
 
 **Important:** Replace `"YOUR_OPENAI_API_KEY_HERE"` with your actual OpenAI API key in the `env` section of the configuration.
 
+
+### Default User ID (Optional Fallback)
+
+Both the `add_memory` and `search_memory` tools require a `userId` argument to associate memories with a specific user.
+
+For convenience during testing or in single-user scenarios, you can optionally set the `DEFAULT_USER_ID` environment variable when launching the server. If this variable is set, and the `userId` argument is *omitted* when calling the `search_memory` tool, the server will use the value of `DEFAULT_USER_ID` for the search.
+
+**Note:** While this fallback exists, it's generally recommended that the calling agent (LLM) explicitly provides the correct `userId` for both adding and searching memories to avoid ambiguity.
+
+Example configuration using `DEFAULT_USER_ID`:
+
+```json
+   {
+     "mcpServers": {
+       "mem0-mcp": {
+         // ... command and args ...
+         "env": {
+           "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
+           "DEFAULT_USER_ID": "user" // Example default user
+         },
+         // ... rest of config ...
+       }
+     }
+   }
+```
+
+Or when running directly with `node`:
+
+```bash
+DEFAULT_USER_ID="user" OPENAI_API_KEY="YOUR_KEY" node /path/to/mem0-mcp/build/index.js
+```
+
 ## Development 💻
 
 Clone the repository and install dependencies:

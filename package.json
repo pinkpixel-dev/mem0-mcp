@@ -1,6 +1,6 @@
 {
   "name": "@pinkpixel/mem0-mcp",
-  "version": "0.1.3",
+  "version": "0.1.7",
   "description": "A Model Context Protocol server that can store and retrieve memories for LLM context control",
   "private": false,
   "type": "module",

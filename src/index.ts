@@ -56,17 +56,15 @@ class Mem0MCPServer {
     // Check for required environment variable for Mem0 internal LLM
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      console.error("FATAL: OPENAI_API_KEY environment variable is required for Mem0 client.");
-      process.exit(1); // Exit if key is missing
+      process.exit(1); // Exit silently if key is missing
     }
 
-    // Initialize Mem0 client - relies on environment variables like OPENAI_API_KEY being set
-    // Explicitly configure to use the in-memory vector store for debugging
+    // Initialize Mem0 client with in-memory vector store
     this.mem0Client = new Memory({
-      vectorStore: { // Use camelCase for TS config keys
-        provider: "memory", // Specify in-memory provider
+      vectorStore: {
+        provider: "memory",
         config: {
-          collectionName: "mem0_default_collection" // Add required collection name
+          collectionName: "mem0_default_collection"
         }
       }
     });
@@ -76,7 +74,7 @@ class Mem0MCPServer {
       {
         // These should match package.json
         name: "@pinkpixel/mem0-mcp", // Match updated package name
-        version: "0.1.3",
+        version: "0.1.7",
       },
       {
         capabilities: {
@@ -89,9 +87,8 @@ class Mem0MCPServer {
     this.setupToolHandlers(); // Call method setup
 
     // Basic error handling for the MCP server itself
-    this.server.onerror = (error: Error) => console.error('[MCP Server Error]', error); // Add Error type
+    this.server.onerror = (_error: Error) => { }; // Silently handle errors
     process.on('SIGINT', async () => {
-        console.log("Shutting down Mem0 MCP server...");
         await this.server.close();
         process.exit(0);
     });
@@ -154,7 +151,7 @@ class Mem0MCPServer {
                   description: "Optional key-value filters for metadata.",
                 },
               },
-              required: ["query"],
+              required: ["query", "userId"], // Make userId required again
             },
           },
         ],
@@ -191,12 +188,26 @@ class Mem0MCPServer {
 
           case "search_memory": { // Renamed case
              // Extract args using the specific tool type
-            const { query, userId, sessionId, filters } = args as Mem0SearchToolArgs;
+             // Extract args using the specific tool type
+            const { query, userId: argUserId, sessionId, filters } = args as Mem0SearchToolArgs; // Rename userId from args
+
             if (!query) {
               throw new McpError(ErrorCode.InvalidParams, "Missing required argument: query");
             }
-             // Prepare arguments for mem0Client.search
-            const options: Mem0SearchOptions = { userId, sessionId, filters };
+
+            // Determine the effective userId
+            const effectiveUserId = argUserId || process.env.DEFAULT_USER_ID; // Use arg first, then env var
+
+            if (!effectiveUserId) {
+              // Throw error if no userId is available from args or environment
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                "Missing user identifier. Provide 'userId' argument or set the DEFAULT_USER_ID environment variable."
+              );
+            }
+
+             // Prepare arguments for mem0Client.search using the effectiveUserId
+            const options: Mem0SearchOptions = { userId: effectiveUserId, sessionId, filters };
 
             // Call Mem0 search function
             const results = await this.mem0Client.search(query, options);
@@ -211,7 +222,7 @@ class Mem0MCPServer {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
         }
       } catch (error: any) { // Add explicit any type for caught error
-          console.error(`Error calling tool ${request.params.name}:`, error);
+          // Errors are handled by throwing McpError, no logging needed
           // Check if it's already an McpError
           if (error instanceof McpError) {
               throw error;
@@ -228,16 +239,12 @@ class Mem0MCPServer {
   /**
    * Connects the server to the transport and starts listening.
    */
-  async run(): Promise<void> { // Add return type Promise<void>
+  async run(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error("Mem0 MCP server running on stdio."); // Log to stderr
-  } // End of run
-} // End of Mem0MCPServer class
+  }
+}
 
 // Instantiate and run the server
 const mem0Server = new Mem0MCPServer();
-mem0Server.run().catch((error: Error) => { // Add Error type
-  console.error("Server failed to start:", error);
-  process.exit(1);
-});
+mem0Server.run().catch(() => process.exit(1));
