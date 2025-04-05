@@ -102,7 +102,18 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
 
 ### 2. Running from Cloned Repository
 
-Clone the repository, install dependencies, and build the server (see [Development](#development-) section below). Then, configure your MCP client to run the built script directly using `node`:
+**Note: This method requires you to git clone the repository first.**
+
+Clone the repository, install dependencies, and build the server:
+
+```bash
+git clone https://github.com/pinkpixel-dev/mem0-mcp 
+cd mem0-mcp
+npm install
+npm run build
+```
+
+Then, configure your MCP client to run the built script directly using `node`:
 
 ```json
 {
@@ -110,10 +121,11 @@ Clone the repository, install dependencies, and build the server (see [Developme
     "mem0-mcp": {
       "command": "node",
       "args": [
-        "/path/to/your/cloned/mem0-mcp/build/index.js" 
+        "/absolute/path/to/mem0-mcp/build/index.js" 
       ],
       "env": {
-        "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE"
+        "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123"
         // OR use "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE" for local storage
       },
       "disabled": false,
@@ -126,7 +138,10 @@ Clone the repository, install dependencies, and build the server (see [Developme
 }
 ```
 
-**Note:** Replace `/path/to/your/cloned/mem0-mcp/` with the actual absolute path to where you cloned the repository.
+**Important Notes:**
+1. Replace `/absolute/path/to/mem0-mcp/` with the actual absolute path to your cloned repository
+2. Use the `build/index.js` file, not the `src/index.ts` file
+3. The MCP server requires clean stdout for protocol communication - any libraries or code that writes to stdout may interfere with the protocol
 
 ### Default User ID (Optional Fallback)
 
@@ -162,14 +177,17 @@ DEFAULT_USER_ID="user123" MEM0_API_KEY="YOUR_KEY" node /path/to/mem0-mcp/build/i
 ## Cloud vs. Local Storage 🔄
 
 ### Cloud Storage (Mem0 API)
-* **Persistent by default** - Your memories remain available across server restarts
+* **Persistent by default** - Your memories remain available across sessions and server restarts
 * **No local database required** - All data is stored on Mem0's servers
 * **Higher retrieval quality** - Uses Mem0's optimized search algorithms
 * **Additional fields** - Supports `agent_id` and `threshold` parameters
 * **Requires** - A Mem0 API key
 
 ### Local Storage (OpenAI API)
-* **In-memory by default** - Data is lost on server restart unless configured for persistence
+* **In-memory by default** - Data is stored only in RAM and is **not persistent long-term**. While some caching may occur, you should not rely on this for permanent storage.
+* **Data loss risk** - Memory data will be lost on server restart, system reboot, or if the process is terminated
+* **Recommended for** - Development, testing, or temporary use only
+* **For persistent storage** - Use the Cloud Storage option with Mem0 API if you need reliable long-term memory
 * **Uses OpenAI embeddings** - For vector search functionality
 * **Self-contained** - All data stays on your machine
 * **Requires** - An OpenAI API key
@@ -198,13 +216,38 @@ npm run watch
 
 ## Debugging 🐞
 
-Since MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:
+Since MCP servers communicate over stdio, debugging can be challenging. Here are some approaches:
 
+1. **Use the MCP Inspector**: This tool can monitor the MCP protocol communication:
 ```bash
 npm run inspector
 ```
 
-The Inspector will provide a URL to access debugging tools in your browser.
+2. **Console Logging**: When adding console logs, always use `console.error()` instead of `console.log()` to avoid interfering with the MCP protocol
+
+3. **Environment Files**: Use a `.env` file for local development to simplify setting API keys and other configuration options
+
+## Technical Implementation Notes 🔧
+
+### SafeLogger
+
+The MCP server implements a `SafeLogger` class that selectively redirects console.log calls from the mem0ai library to stderr without disrupting MCP protocol:
+
+- Intercepts console.log calls and examines stack traces to determine source
+- Only redirects log calls from mem0ai library or our own code
+- Preserves clean stdout for MCP protocol communication
+- Automatically cleans up resources on process exit
+
+This allows proper functioning within MCP clients while maintaining useful debug information.
+
+### Environment Variables
+
+The server recognizes several environment variables that control its behavior:
+
+- `MEM0_API_KEY`: API key for cloud storage mode
+- `OPENAI_API_KEY`: API key for local storage mode (embeddings)
+- `DEFAULT_USER_ID`: Default user ID for memory operations
+- `LOG_LEVEL`, `DEBUG`, `SILENT`: Various logging controls
 
 ---
 

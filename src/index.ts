@@ -9,6 +9,49 @@
  * 2. Local mode: Uses in-memory storage with OPENAI_API_KEY for embeddings
  */
 
+// Create a wrapper around console to safely redirect logs from libraries
+// This ensures MCP protocol communication is not affected
+class SafeLogger {
+  private originalConsoleLog: typeof console.log;
+  
+  constructor() {
+    // Store the original console.log
+    this.originalConsoleLog = console.log;
+    
+    // Redirect console.log to stderr only for our module
+    console.log = (...args) => {
+      // Check if it's from the mem0ai library or our code
+      const stack = new Error().stack || '';
+      if (stack.includes('mem0ai') || stack.includes('mem0-mcp')) {
+        console.error('[redirected log]', ...args);
+      } else {
+        // Keep normal behavior for MCP protocol and other code
+        this.originalConsoleLog.apply(console, args);
+      }
+    };
+  }
+  
+  // Restore original behavior
+  restore() {
+    console.log = this.originalConsoleLog;
+  }
+}
+
+// Apply the safe logger
+const safeLogger = new SafeLogger();
+
+// Disable debug logs in any libraries that respect these environment variables
+process.env.DEBUG = '';  // Disable debug logs
+process.env.NODE_DEBUG = ''; // Disable Node.js internal debugging
+process.env.DEBUG_COLORS = 'no'; // Disable color output in logs
+process.env.NODE_ENV = process.env.NODE_ENV || 'production'; // Use production mode by default
+process.env.LOG_LEVEL = 'error'; // Set log level to error only
+process.env.SILENT = 'true'; // Some libraries respect this
+process.env.QUIET = 'true'; // Some libraries respect this
+
+// IMPORTANT: Don't globally override stdout as it breaks MCP protocol
+// We'll use more targeted approaches in specific methods
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -54,7 +97,7 @@ class Mem0MCPServer {
   private isReady: boolean = false;
 
   constructor() {
-    console.log("Initializing Mem0 MCP Server...");
+    console.error("Initializing Mem0 MCP Server...");
     
     // Check for Mem0 API key first (for cloud mode)
     const mem0ApiKey = process.env.MEM0_API_KEY;
@@ -81,41 +124,50 @@ class Mem0MCPServer {
     
     // Determine the mode based on available keys
     if (mem0ApiKey) {
-      console.log("Using Mem0 cloud storage mode with MEM0_API_KEY");
+      console.error("Using Mem0 cloud storage mode with MEM0_API_KEY");
       this.isCloudMode = true;
       
       // Dynamic import for cloud client
       import('mem0ai').then(module => {
-        MemoryClient = module.default;
-        // Get organization and project IDs
-        const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
-        const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
-        
-        // Initialize with all available options
-        const clientOptions: any = { 
-          apiKey: mem0ApiKey
-        };
-        
-        // Add org and project IDs if available
-        if (orgId) clientOptions.org_id = orgId;
-        if (projectId) clientOptions.project_id = projectId;
-        
-        this.cloudClient = new MemoryClient(clientOptions);
-        console.log("Cloud client initialized successfully with options:", { 
-          hasApiKey: !!mem0ApiKey,
-          hasOrgId: !!orgId, 
-          hasProjectId: !!projectId 
-        });
-        this.isReady = true;
+        try {
+          MemoryClient = module.default;
+          // Get organization and project IDs
+          const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
+          const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+          
+          // Initialize with all available options
+          const clientOptions: any = { 
+            apiKey: mem0ApiKey,
+            // Disable debug logs in the client if possible
+            debug: false,
+            verbose: false,
+            silent: true
+          };
+          
+          // Add org and project IDs if available
+          if (orgId) clientOptions.org_id = orgId;
+          if (projectId) clientOptions.project_id = projectId;
+          
+          this.cloudClient = new MemoryClient(clientOptions);
+          console.error("Cloud client initialized successfully with options:", { 
+            hasApiKey: !!mem0ApiKey,
+            hasOrgId: !!orgId, 
+            hasProjectId: !!projectId 
+          });
+          this.isReady = true;
+        } catch (error) {
+          console.error("Error in cloud client initialization:", error);
+        }
       }).catch(error => {
         console.error("Error initializing cloud client:", error);
         process.exit(1);
       });
     } else if (openaiApiKey) {
-      console.log("Using local in-memory storage mode with OPENAI_API_KEY");
+      console.error("Using local in-memory storage mode with OPENAI_API_KEY");
       this.isCloudMode = false;
       
       try {
+        // Initialize with silent options if available
         this.localClient = new Memory({
           vectorStore: {
             provider: "memory",
@@ -123,8 +175,10 @@ class Mem0MCPServer {
               collectionName: "mem0_default_collection"
             }
           }
+          // Add silent options if supported by the mem0ai library
+          // Options like debug, silent, verbose don't exist in the type but might be supported at runtime
         });
-        console.log("Local client initialized successfully");
+        console.error("Local client initialized successfully");
         this.isReady = true;
       } catch (error) {
         console.error("Error initializing local client:", error);
@@ -136,8 +190,27 @@ class Mem0MCPServer {
     }
     
     process.on('SIGINT', async () => {
+      console.error("Received SIGINT signal, shutting down...");
+      // Restore original console.log before exit
+      safeLogger.restore();
       await this.server.close();
       process.exit(0);
+    });
+    
+    process.on('SIGTERM', async () => {
+      console.error("Received SIGTERM signal, shutting down...");
+      // Restore original console.log before exit
+      safeLogger.restore();
+      await this.server.close();
+      process.exit(0);
+    });
+    
+    // Cleanup on uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      console.error("Uncaught exception:", error);
+      // Restore original console.log before exit
+      safeLogger.restore();
+      process.exit(1);
     });
   }
 
@@ -261,7 +334,7 @@ class Mem0MCPServer {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId");
     }
 
-    console.log(`Adding memory for user ${userId}`);
+    console.error(`Adding memory for user ${userId}`);
     
     if (this.isCloudMode && this.cloudClient) {
       try {
@@ -289,9 +362,9 @@ class Mem0MCPServer {
         if (agentId) options.agent_id = agentId;
         if (metadata) options.metadata = metadata;
         
-        // API call with correct parameters order
+        // API call
         const result = await this.cloudClient.add(messages, options);
-        console.log("Memory added successfully using cloud API");
+        console.error("Memory added successfully using cloud API");
         
         return {
           content: [{ type: "text", text: `Memory added successfully` }],
@@ -315,10 +388,10 @@ class Mem0MCPServer {
           metadata
         };
         
-        // API call with correct parameters
+        // API call
         const result = await this.localClient.add(messages, options);
         
-        console.log("Memory added successfully using local storage");
+        console.error("Memory added successfully using local storage");
         
         return {
           content: [{ type: "text", text: `Memory added successfully` }],
@@ -346,7 +419,7 @@ class Mem0MCPServer {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId");
     }
 
-    console.log(`Searching memories for query "${query}" and user ${userId}`);
+    console.error(`Searching memories for query "${query}" and user ${userId}`);
     
     if (this.isCloudMode && this.cloudClient) {
       try {
@@ -364,16 +437,18 @@ class Mem0MCPServer {
         if (orgId) options.org_id = orgId;
         if (projectId) options.project_id = projectId;
         
+        // Map sessionId to run_id for Mem0 API compatibility
+        if (sessionId) options.run_id = sessionId;
         if (agentId) options.agent_id = agentId;
         if (filters) options.filters = filters;
         if (threshold !== undefined) options.threshold = threshold;
         
-        // API call with correct parameters order: query, options
+        // API call
         const results = await this.cloudClient.search(query, options);
         
         // Handle potential array or object result
         const resultsArray = Array.isArray(results) ? results : [results];
-        console.log(`Found ${resultsArray.length} memories using cloud API`);
+        console.error(`Found ${resultsArray.length} memories using cloud API`);
         
         return {
           content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
@@ -391,12 +466,12 @@ class Mem0MCPServer {
           filters
         };
         
-        // API call with correct parameters: query, options
+        // API call
         const results = await this.localClient.search(query, options);
         
         // Handle potential array or object result
         const resultsArray = Array.isArray(results) ? results : [results];
-        console.log(`Found ${resultsArray.length} memories using local storage`);
+        console.error(`Found ${resultsArray.length} memories using local storage`);
         
         return {
           content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
@@ -414,10 +489,10 @@ class Mem0MCPServer {
    * Starts the MCP server.
    */
   public async start(): Promise<void> {
-    console.log("Starting Mem0 MCP Server...");
+    console.error("Starting Mem0 MCP Server...");
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.log("Mem0 MCP Server is running.");
+    console.error("Mem0 MCP Server is running.");
   }
 }
 
@@ -425,5 +500,7 @@ class Mem0MCPServer {
 const server = new Mem0MCPServer();
 server.start().catch((error) => {
   console.error("Failed to start server:", error);
+  // Restore original console.log before exit
+  safeLogger.restore();
   process.exit(1);
 });

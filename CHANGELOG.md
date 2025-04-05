@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2025-04-05
+
+### Fixed
+- Implemented `SafeLogger` class to selectively redirect console.log calls from mem0ai library to stderr without breaking MCP protocol
+- Fixed critical issue where stdout writes from internal libraries were disrupting the MCP communication protocol
+- Added environment variable configurations to minimize debug logging from libraries
+- Improved error handling and cleanup on process exit
+
 ## [0.1.7] - 2025-04-05
 
 ### Fixed
@@ -22,11 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Resolved issue where memories were not being stored correctly due to unconfigured default database (Qdrant). Explicitly configured `mem0ai` client to use the in-memory vector store by default, ensuring basic functionality works out-of-the-box.
 
-## [Unreleased]
-
-### Added
-- Placeholder for future changes
-
 ## [0.1.0] - 2025-04-05
 
 ### Added
@@ -38,7 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `README.md` with description, features, prerequisites, and installation instructions.
 - Standard `LICENSE` (MIT), `CHANGELOG.md`, and `.gitignore`.
 
-[Unreleased]: https://github.com/pinkpixel-dev/mem0-mcp/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/pinkpixel-dev/mem0-mcp/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/pinkpixel-dev/mem0-mcp/compare/v0.1.7...v0.2.5
 [0.1.7]: https://github.com/pinkpixel-dev/mem0-mcp/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/pinkpixel-dev/mem0-mcp/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/pinkpixel-dev/mem0-mcp/compare/v0.1.0...v0.1.5
