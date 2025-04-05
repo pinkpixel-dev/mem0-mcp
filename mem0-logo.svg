@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="180" viewBox="0 0 800 180">
+  <style>
+    .logo-text { font-family: monospace; font-size: 14px; font-weight: bold; }
+    .m1 { fill: #ff3333; } /* Red */
+    .e1 { fill: #ff8000; } /* Orange */
+    .m2 { fill: #ffcc00; } /* Yellow */
+    .zero { fill: #33cc33; } /* Green */
+    .m3 { fill: #3399ff; } /* Blue */
+    .c { fill: #9933ff; } /* Purple */
+    .p { fill: #ff66ff; } /* Pink */
+    .background { fill: rgba(30, 30, 30, 0.1); rx: 15; ry: 15; }
+  </style>
+  
+  <!-- Background with slight transparency and rounded corners -->
+  <rect x="50" y="10" width="700" height="160" class="background" />
+  
+  <!-- MEM0 -->
+  <text x="100" y="50" class="logo-text m1">███╗   ███╗</text>
+  <text x="100" y="70" class="logo-text m1">████╗ ████║</text>
+  <text x="100" y="90" class="logo-text m1">██╔████╔██║</text>
+  <text x="100" y="110" class="logo-text m1">██║╚██╔╝██║</text>
+  <text x="100" y="130" class="logo-text m1">██║ ╚═╝ ██║</text>
+  <text x="100" y="150" class="logo-text m1">╚═╝     ╚═╝</text>
+  
+  <text x="200" y="50" class="logo-text e1">███████╗</text>
+  <text x="200" y="70" class="logo-text e1">██╔════╝</text>
+  <text x="200" y="90" class="logo-text e1">█████╗  </text>
+  <text x="200" y="110" class="logo-text e1">██╔══╝  </text>
+  <text x="200" y="130" class="logo-text e1">███████╗</text>
+  <text x="200" y="150" class="logo-text e1">╚══════╝</text>
+  
+  <text x="280" y="50" class="logo-text m2">███╗   ███╗</text>
+  <text x="280" y="70" class="logo-text m2">████╗ ████║</text>
+  <text x="280" y="90" class="logo-text m2">██╔████╔██║</text>
+  <text x="280" y="110" class="logo-text m2">██║╚██╔╝██║</text>
+  <text x="280" y="130" class="logo-text m2">██║ ╚═╝ ██║</text>
+  <text x="280" y="150" class="logo-text m2">╚═╝     ╚═╝</text>
+  
+  <text x="380" y="50" class="logo-text zero"> ██████╗ </text>
+  <text x="380" y="70" class="logo-text zero">██╔═══██╗</text>
+  <text x="380" y="90" class="logo-text zero">██║   ██║</text>
+  <text x="380" y="110" class="logo-text zero">██║   ██║</text>
+  <text x="380" y="130" class="logo-text zero">╚██████╔╝</text>
+  <text x="380" y="150" class="logo-text zero"> ╚═════╝ </text>
+  
+  <!-- MCP -->
+  <text x="480" y="50" class="logo-text m3">███╗   ███╗</text>
+  <text x="480" y="70" class="logo-text m3">████╗ ████║</text>
+  <text x="480" y="90" class="logo-text m3">██╔████╔██║</text>
+  <text x="480" y="110" class="logo-text m3">██║╚██╔╝██║</text>
+  <text x="480" y="130" class="logo-text m3">██║ ╚═╝ ██║</text>
+  <text x="480" y="150" class="logo-text m3">╚═╝     ╚═╝</text>
+  
+  <text x="580" y="50" class="logo-text c"> ██████╗</text>
+  <text x="580" y="70" class="logo-text c">██╔════╝</text>
+  <text x="580" y="90" class="logo-text c">██║     </text>
+  <text x="580" y="110" class="logo-text c">██║     </text>
+  <text x="580" y="130" class="logo-text c">╚██████╗</text>
+  <text x="580" y="150" class="logo-text c"> ╚═════╝</text>
+  
+  <text x="650" y="50" class="logo-text p">██████╗</text>
+  <text x="650" y="70" class="logo-text p">██╔══██╗</text>
+  <text x="650" y="90" class="logo-text p">██████╔╝</text>
+  <text x="650" y="110" class="logo-text p">██╔═══╝ </text>
+  <text x="650" y="130" class="logo-text p">██║     </text>
+  <text x="650" y="150" class="logo-text p">╚═╝     </text>
+</svg>

@@ -12,75 +12,121 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
 ### Tools
 
 *   **`add_memory`**: Stores a piece of text content as a memory associated with a specific `userId`.
-    *   **Input:** `content` (string, required), `userId` (string, required), `sessionId` (string, optional), `metadata` (object, optional)
+    *   **Input:** `content` (string, required), `userId` (string, required), `sessionId` (string, optional), `agentId` (string, optional), `metadata` (object, optional)
     *   Stores the provided text, enabling recall in future interactions.
 *   **`search_memory`**: Searches stored memories based on a natural language query for a specific `userId`.
-    *   **Input:** `query` (string, required), `userId` (string, optional), `sessionId` (string, optional), `filters` (object, optional)
+    *   **Input:** `query` (string, required), `userId` (string, required), `sessionId` (string, optional), `agentId` (string, optional), `filters` (object, optional), `threshold` (number, optional)
     *   Retrieves relevant memories based on semantic similarity.
 
 ## Prerequisites 🔑
 
-This server requires an **OpenAI API key** for the internal operations of the `mem0ai` library (used for embedding and processing memories). This key must be provided as an environment variable (`OPENAI_API_KEY`) in your MCP client configuration.
+This server supports two storage modes:
+
+1. **Cloud Storage Mode** ☁️ (Recommended)
+   * Requires a **Mem0 API key** (provided as `MEM0_API_KEY` environment variable)
+   * Memories are persistently stored on Mem0's cloud servers
+   * No local database needed
+
+2. **Local Storage Mode** 💾
+   * Requires an **OpenAI API key** (provided as `OPENAI_API_KEY` environment variable)
+   * Memories are stored in an in-memory vector database (non-persistent by default)
+   * Data is lost when the server restarts unless configured for persistent storage
 
 ## Installation & Configuration ⚙️
 
 You can run this server in two main ways:
 
-**1. Using `npx` (Recommended for quick use):**
+### 1. Using `npx` (Recommended for quick use)
 
-   Install the package globally using npm:
+Install the package globally using npm:
 
-   ```bash
-   npm install -g @pinkpixel/mem0-mcp
-   ```
+```bash
+npm install -g @pinkpixel/mem0-mcp
+```
 
 Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) to run the server using `npx`:
 
-   ```json
-   {
-     "mcpServers": {
-       "mem0-mcp": {
-         "command": "npx",
-         "args": [
-           "-y",
-           "@pinkpixel/mem0-mcp"
-           ],
-         "env": {
-           "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE"
-         },
-         "disabled": false,
-         "alwaysAllow": []
-       }
-     }
-   }
-   ```
-   **Note:** Replace `"YOUR_OPENAI_API_KEY_HERE"` with your actual OpenAI API key.  
+#### Cloud Storage Configuration (Recommended)
 
-**2. Running from Cloned Repository:**
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@pinkpixel/mem0-mcp"
+      ],
+      "env": {
+        "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory"
+      ]
+    }
+  }
+}
+```
 
-   Clone the repository, install dependencies, and build the server (see [Development](#development-) section below). Then, configure your MCP client to run the built script directly using `node`:
+**Note:** Replace `"YOUR_MEM0_API_KEY_HERE"` with your actual Mem0 API key.
 
-   ```json
-   {
-     "mcpServers": {
-       "mem0-mcp": {
-         "command": "node",
-         "args": [
-           "/path/to/your/cloned/mem0-mcp/build/index.js" 
-         ],
-         "env": {
-           "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE"
-         },
-         "disabled": false,
-         "alwaysAllow": []
-       }
-     }
-   }
-   ```
-   **Note:** Replace `/path/to/your/cloned/mem0-mcp/` with the actual absolute path to where you cloned the repository.
+#### Local Storage Configuration (Alternative)
 
-**Important:** Replace `"YOUR_OPENAI_API_KEY_HERE"` with your actual OpenAI API key in the `env` section of the configuration.
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@pinkpixel/mem0-mcp"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory"
+      ]
+    }
+  }
+}
+```
 
+**Note:** Replace `"YOUR_OPENAI_API_KEY_HERE"` with your actual OpenAI API key.
+
+### 2. Running from Cloned Repository
+
+Clone the repository, install dependencies, and build the server (see [Development](#development-) section below). Then, configure your MCP client to run the built script directly using `node`:
+
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "node",
+      "args": [
+        "/path/to/your/cloned/mem0-mcp/build/index.js" 
+      ],
+      "env": {
+        "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE"
+        // OR use "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE" for local storage
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory"
+      ]
+    }
+  }
+}
+```
+
+**Note:** Replace `/path/to/your/cloned/mem0-mcp/` with the actual absolute path to where you cloned the repository.
 
 ### Default User ID (Optional Fallback)
 
@@ -93,25 +139,40 @@ For convenience during testing or in single-user scenarios, you can optionally s
 Example configuration using `DEFAULT_USER_ID`:
 
 ```json
-   {
-     "mcpServers": {
-       "mem0-mcp": {
-         // ... command and args ...
-         "env": {
-           "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
-           "DEFAULT_USER_ID": "user" // Example default user
-         },
-         // ... rest of config ...
-       }
-     }
-   }
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      // ... command and args ...
+      "env": {
+        "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123" // Example default user
+      },
+      // ... rest of config ...
+    }
+  }
+}
 ```
 
 Or when running directly with `node`:
 
 ```bash
-DEFAULT_USER_ID="user" OPENAI_API_KEY="YOUR_KEY" node /path/to/mem0-mcp/build/index.js
+DEFAULT_USER_ID="user123" MEM0_API_KEY="YOUR_KEY" node /path/to/mem0-mcp/build/index.js
 ```
+
+## Cloud vs. Local Storage 🔄
+
+### Cloud Storage (Mem0 API)
+* **Persistent by default** - Your memories remain available across server restarts
+* **No local database required** - All data is stored on Mem0's servers
+* **Higher retrieval quality** - Uses Mem0's optimized search algorithms
+* **Additional fields** - Supports `agent_id` and `threshold` parameters
+* **Requires** - A Mem0 API key
+
+### Local Storage (OpenAI API)
+* **In-memory by default** - Data is lost on server restart unless configured for persistence
+* **Uses OpenAI embeddings** - For vector search functionality
+* **Self-contained** - All data stays on your machine
+* **Requires** - An OpenAI API key
 
 ## Development 💻
 

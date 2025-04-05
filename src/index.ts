@@ -3,6 +3,10 @@
 /**
  * MCP server for interacting with Mem0.ai memory storage.
  * Provides tools to add and search memories.
+ * 
+ * Supports two modes:
+ * 1. Cloud mode: Uses Mem0's hosted API with MEM0_API_KEY
+ * 2. Local mode: Uses in-memory storage with OPENAI_API_KEY for embeddings
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -13,67 +17,56 @@ import {
   McpError,
   ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
-import { Memory } from "mem0ai/oss"; // Import Memory class from oss submodule
 
-// Type definitions matching the expected options objects for mem0 methods
-type Mem0AddOptions = {
-  userId?: string;
-  sessionId?: string;
-  metadata?: Record<string, any>;
-};
-type Mem0SearchOptions = {
-  userId?: string;
-  sessionId?: string;
-  filters?: Record<string, any>;
-};
+import { Memory } from "mem0ai/oss"; // For local in-memory storage
+// Using dynamic import for cloud API to avoid TypeScript issues
+let MemoryClient: any = null;
 
 // Type for the arguments received by the MCP tool handlers
-// Ensure properties match the inputSchema (camelCase)
 type Mem0AddToolArgs = {
   content: string;
-  userId: string; // Make userId required for the tool
+  userId: string;
   sessionId?: string;
+  agentId?: string;
   metadata?: Record<string, any>;
 };
+
 type Mem0SearchToolArgs = {
   query: string;
-  userId?: string;
+  userId: string;
   sessionId?: string;
+  agentId?: string;
   filters?: Record<string, any>;
+  threshold?: number;
 };
 
-// Define the structure for messages array used by mem0Client.add
+// Message type for Mem0 API
 type Mem0Message = {
-    role: "user" | "assistant"; // Add other roles if needed
-    content: string;
+  role: "user" | "assistant" | "system";
+  content: string;
 };
 
 class Mem0MCPServer {
-  private server: Server; // Declare server property
-  private mem0Client: Memory; // Declare mem0Client property
+  private server: Server;
+  private isCloudMode: boolean = false;
+  private localClient?: Memory;
+  private cloudClient?: any;
+  private isReady: boolean = false;
 
   constructor() {
-    // Check for required environment variable for Mem0 internal LLM
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      process.exit(1); // Exit silently if key is missing
-    }
-
-    // Initialize Mem0 client with in-memory vector store
-    this.mem0Client = new Memory({
-      vectorStore: {
-        provider: "memory",
-        config: {
-          collectionName: "mem0_default_collection"
-        }
-      }
-    });
-
+    console.log("Initializing Mem0 MCP Server...");
+    
+    // Check for Mem0 API key first (for cloud mode)
+    const mem0ApiKey = process.env.MEM0_API_KEY;
+    
+    // Check for OpenAI API key (for local mode)
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    
     // Initialize MCP Server
-    this.server = new Server( // Initialize here
+    this.server = new Server(
       {
         // These should match package.json
-        name: "@pinkpixel/mem0-mcp", // Match updated package name
+        name: "@pinkpixel/mem0-mcp",
         version: "0.1.7",
       },
       {
@@ -84,26 +77,80 @@ class Mem0MCPServer {
       }
     );
 
-    this.setupToolHandlers(); // Call method setup
-
-    // Basic error handling for the MCP server itself
-    this.server.onerror = (_error: Error) => { }; // Silently handle errors
+    this.setupToolHandlers();
+    
+    // Determine the mode based on available keys
+    if (mem0ApiKey) {
+      console.log("Using Mem0 cloud storage mode with MEM0_API_KEY");
+      this.isCloudMode = true;
+      
+      // Dynamic import for cloud client
+      import('mem0ai').then(module => {
+        MemoryClient = module.default;
+        // Get organization and project IDs
+        const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
+        const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        
+        // Initialize with all available options
+        const clientOptions: any = { 
+          apiKey: mem0ApiKey
+        };
+        
+        // Add org and project IDs if available
+        if (orgId) clientOptions.org_id = orgId;
+        if (projectId) clientOptions.project_id = projectId;
+        
+        this.cloudClient = new MemoryClient(clientOptions);
+        console.log("Cloud client initialized successfully with options:", { 
+          hasApiKey: !!mem0ApiKey,
+          hasOrgId: !!orgId, 
+          hasProjectId: !!projectId 
+        });
+        this.isReady = true;
+      }).catch(error => {
+        console.error("Error initializing cloud client:", error);
+        process.exit(1);
+      });
+    } else if (openaiApiKey) {
+      console.log("Using local in-memory storage mode with OPENAI_API_KEY");
+      this.isCloudMode = false;
+      
+      try {
+        this.localClient = new Memory({
+          vectorStore: {
+            provider: "memory",
+            config: {
+              collectionName: "mem0_default_collection"
+            }
+          }
+        });
+        console.log("Local client initialized successfully");
+        this.isReady = true;
+      } catch (error) {
+        console.error("Error initializing local client:", error);
+        process.exit(1);
+      }
+    } else {
+      console.error("Error: Either MEM0_API_KEY (for cloud storage) or OPENAI_API_KEY (for local storage) must be provided.");
+      process.exit(1);
+    }
+    
     process.on('SIGINT', async () => {
-        await this.server.close();
-        process.exit(0);
+      await this.server.close();
+      process.exit(0);
     });
-  } // End of constructor
+  }
 
   /**
    * Sets up handlers for MCP tool-related requests.
    */
-  private setupToolHandlers(): void { // Add return type void
+  private setupToolHandlers(): void {
     // Handler for listing available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: [
           {
-            name: "add_memory", // Renamed
+            name: "add_memory",
             description: "Stores a piece of text as a memory in Mem0.",
             inputSchema: {
               type: "object",
@@ -112,24 +159,28 @@ class Mem0MCPServer {
                   type: "string",
                   description: "The text content to store as memory.",
                 },
-                userId: { // Use camelCase
+                userId: {
                   type: "string",
-                  description: "Optional user ID to associate with the memory.",
+                  description: "User ID to associate with the memory.",
                 },
-                sessionId: { // Use camelCase
+                sessionId: {
                   type: "string",
                   description: "Optional session ID to associate with the memory.",
+                },
+                agentId: {
+                  type: "string",
+                  description: "Optional agent ID to associate with the memory (for cloud API).",
                 },
                 metadata: {
                   type: "object",
                   description: "Optional key-value metadata.",
                 },
               },
-              required: ["content", "userId"], // Make userId required by the tool schema
+              required: ["content", "userId"],
             },
           },
           {
-            name: "search_memory", // Renamed
+            name: "search_memory",
             description: "Searches stored memories in Mem0 based on a query.",
             inputSchema: {
               type: "object",
@@ -138,113 +189,241 @@ class Mem0MCPServer {
                   type: "string",
                   description: "The search query.",
                 },
-                userId: { // Use camelCase
+                userId: {
                   type: "string",
-                  description: "Optional user ID to filter search.",
+                  description: "User ID to filter search.",
                 },
-                sessionId: { // Use camelCase
+                sessionId: {
                   type: "string",
                   description: "Optional session ID to filter search.",
+                },
+                agentId: {
+                  type: "string",
+                  description: "Optional agent ID to filter search (for cloud API).",
                 },
                 filters: {
                   type: "object",
                   description: "Optional key-value filters for metadata.",
                 },
+                threshold: {
+                  type: "number",
+                  description: "Optional similarity threshold for results (for cloud API).",
+                },
               },
-              required: ["query", "userId"], // Make userId required again
+              required: ["query", "userId"],
             },
           },
         ],
       };
     });
 
-    // Handler for executing tool calls
-    // Add explicit type for request parameter
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => { // Let TS infer request type
-      // Ensure arguments exist and provide a default empty object if not
-      const args = request.params.arguments || {};
+    // Handler for call tool requests
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      if (!this.isReady) {
+        throw new McpError(ErrorCode.InternalError, "Memory client is still initializing. Please try again in a moment.");
+      }
 
       try {
-        switch (request.params.name) {
-          case "add_memory": { // Renamed case
-            // Extract args using the specific tool type
-            const { content, userId, sessionId, metadata } = args as Mem0AddToolArgs; // userId is now guaranteed
-            if (!content) {
-              throw new McpError(ErrorCode.InvalidParams, "Missing required argument: content");
-            }
-            // Prepare arguments for mem0Client.add
-            const messages: Mem0Message[] = [{ role: "user", content: content }]; // Wrap content in message array
-            const options: Mem0AddOptions = { userId, sessionId, metadata }; // Pass the required userId
+        const { name } = request.params;
+        const args = request.params.arguments || {};
 
-            // Call Mem0 add function
-            const result = await this.mem0Client.add(messages, options);
-
-            // Format result
-            const resultText = typeof result === 'string' ? result : JSON.stringify(result);
-            return {
-              content: [{ type: "text", text: `Memory added successfully: ${resultText}` }],
-            };
-          }
-
-          case "search_memory": { // Renamed case
-             // Extract args using the specific tool type
-             // Extract args using the specific tool type
-            const { query, userId: argUserId, sessionId, filters } = args as Mem0SearchToolArgs; // Rename userId from args
-
-            if (!query) {
-              throw new McpError(ErrorCode.InvalidParams, "Missing required argument: query");
-            }
-
-            // Determine the effective userId
-            const effectiveUserId = argUserId || process.env.DEFAULT_USER_ID; // Use arg first, then env var
-
-            if (!effectiveUserId) {
-              // Throw error if no userId is available from args or environment
-              throw new McpError(
-                ErrorCode.InvalidParams,
-                "Missing user identifier. Provide 'userId' argument or set the DEFAULT_USER_ID environment variable."
-              );
-            }
-
-             // Prepare arguments for mem0Client.search using the effectiveUserId
-            const options: Mem0SearchOptions = { userId: effectiveUserId, sessionId, filters };
-
-            // Call Mem0 search function
-            const results = await this.mem0Client.search(query, options);
-
-            // Format result
-            return {
-              content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
-            };
-          }
-
-          default:
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
+        if (name === "add_memory") {
+          const toolArgs = args as unknown as Mem0AddToolArgs;
+          return await this.handleAddMemory(toolArgs);
+        } else if (name === "search_memory") {
+          const toolArgs = args as unknown as Mem0SearchToolArgs;
+          return await this.handleSearchMemory(toolArgs);
+        } else {
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
-      } catch (error: any) { // Add explicit any type for caught error
-          // Errors are handled by throwing McpError, no logging needed
-          // Check if it's already an McpError
-          if (error instanceof McpError) {
-              throw error;
-          }
-          // Wrap other errors as InternalError
-          throw new McpError(
-              ErrorCode.InternalError,
-              `Error executing tool ${request.params.name}: ${error.message || 'Unknown error'}`
-          );
+      } catch (error: any) {
+        if (error instanceof McpError) {
+          throw error;
+        }
+        
+        console.error(`Error executing tool:`, error);
+        throw new McpError(ErrorCode.InternalError, `Error executing tool: ${error.message || 'Unknown error'}`);
       }
     });
-  } // End of setupToolHandlers
+  }
 
   /**
-   * Connects the server to the transport and starts listening.
+   * Handles adding a memory using either local or cloud client.
    */
-  async run(): Promise<void> {
+  private async handleAddMemory(args: Mem0AddToolArgs): Promise<any> {
+    const { content, userId, sessionId, agentId, metadata } = args;
+
+    if (!content) {
+      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: content");
+    }
+
+    if (!userId) {
+      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId");
+    }
+
+    console.log(`Adding memory for user ${userId}`);
+    
+    if (this.isCloudMode && this.cloudClient) {
+      try {
+        // Get organization and project IDs
+        const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
+        const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        
+        // Format message for the cloud API
+        const messages: Mem0Message[] = [{ 
+          role: "user", 
+          content 
+        }];
+        
+        // Cloud API options - using snake_case
+        const options: any = {
+          user_id: userId,
+          version: "v2"
+        };
+        
+        // Add organization and project IDs if available
+        if (orgId) options.org_id = orgId;
+        if (projectId) options.project_id = projectId;
+        
+        if (sessionId) options.run_id = sessionId;
+        if (agentId) options.agent_id = agentId;
+        if (metadata) options.metadata = metadata;
+        
+        // API call with correct parameters order
+        const result = await this.cloudClient.add(messages, options);
+        console.log("Memory added successfully using cloud API");
+        
+        return {
+          content: [{ type: "text", text: `Memory added successfully` }],
+        };
+      } catch (error: any) {
+        console.error("Error adding memory using cloud API:", error);
+        throw new McpError(ErrorCode.InternalError, `Error adding memory: ${error.message}`);
+      }
+    } else if (this.localClient) {
+      try {
+        // Format message for the local storage API
+        const messages: Mem0Message[] = [{ 
+          role: "user", 
+          content 
+        }];
+        
+        // Local storage options - using camelCase
+        const options: any = {
+          userId,
+          sessionId,
+          metadata
+        };
+        
+        // API call with correct parameters
+        const result = await this.localClient.add(messages, options);
+        
+        console.log("Memory added successfully using local storage");
+        
+        return {
+          content: [{ type: "text", text: `Memory added successfully` }],
+        };
+      } catch (error: any) {
+        console.error("Error adding memory using local storage:", error);
+        throw new McpError(ErrorCode.InternalError, `Error adding memory: ${error.message}`);
+      }
+    } else {
+      throw new McpError(ErrorCode.InternalError, "No memory client is available");
+    }
+  }
+
+  /**
+   * Handles searching memories using either local or cloud client.
+   */
+  private async handleSearchMemory(args: Mem0SearchToolArgs): Promise<any> {
+    const { query, userId, sessionId, agentId, filters, threshold } = args;
+
+    if (!query) {
+      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: query");
+    }
+
+    if (!userId) {
+      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId");
+    }
+
+    console.log(`Searching memories for query "${query}" and user ${userId}`);
+    
+    if (this.isCloudMode && this.cloudClient) {
+      try {
+        // Get organization and project IDs
+        const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
+        const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        
+        // Cloud API options
+        const options: any = {
+          user_id: userId,
+          version: "v2"
+        };
+        
+        // Add organization and project IDs if available
+        if (orgId) options.org_id = orgId;
+        if (projectId) options.project_id = projectId;
+        
+        if (agentId) options.agent_id = agentId;
+        if (filters) options.filters = filters;
+        if (threshold !== undefined) options.threshold = threshold;
+        
+        // API call with correct parameters order: query, options
+        const results = await this.cloudClient.search(query, options);
+        
+        // Handle potential array or object result
+        const resultsArray = Array.isArray(results) ? results : [results];
+        console.log(`Found ${resultsArray.length} memories using cloud API`);
+        
+        return {
+          content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+        };
+      } catch (error: any) {
+        console.error("Error searching memories using cloud API:", error);
+        throw new McpError(ErrorCode.InternalError, `Error searching memories: ${error.message}`);
+      }
+    } else if (this.localClient) {
+      try {
+        // Local storage options
+        const options: any = {
+          userId,
+          sessionId,
+          filters
+        };
+        
+        // API call with correct parameters: query, options
+        const results = await this.localClient.search(query, options);
+        
+        // Handle potential array or object result
+        const resultsArray = Array.isArray(results) ? results : [results];
+        console.log(`Found ${resultsArray.length} memories using local storage`);
+        
+        return {
+          content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+        };
+      } catch (error: any) {
+        console.error("Error searching memories using local storage:", error);
+        throw new McpError(ErrorCode.InternalError, `Error searching memories: ${error.message}`);
+      }
+    } else {
+      throw new McpError(ErrorCode.InternalError, "No memory client is available");
+    }
+  }
+
+  /**
+   * Starts the MCP server.
+   */
+  public async start(): Promise<void> {
+    console.log("Starting Mem0 MCP Server...");
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
+    console.log("Mem0 MCP Server is running.");
   }
 }
 
-// Instantiate and run the server
-const mem0Server = new Mem0MCPServer();
-mem0Server.run().catch(() => process.exit(1));
+// Start the server
+const server = new Mem0MCPServer();
+server.start().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
+});
