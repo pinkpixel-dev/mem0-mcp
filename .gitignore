@@ -133,3 +133,4 @@ memory.db
 vector_store.db
 *.db
 mem0-docs/
+

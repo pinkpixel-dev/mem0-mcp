@@ -10,12 +10,15 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
 ## Features 🧠
 
 ### Tools
-
 *   **`add_memory`**: Stores a piece of text content as a memory associated with a specific `userId`.
     *   **Input:** `content` (string, required), `userId` (string, required), `sessionId` (string, optional), `agentId` (string, optional), `metadata` (object, optional)
     *   Stores the provided text, enabling recall in future interactions.
 *   **`search_memory`**: Searches stored memories based on a natural language query for a specific `userId`.
     *   **Input:** `query` (string, required), `userId` (string, required), `sessionId` (string, optional), `agentId` (string, optional), `filters` (object, optional), `threshold` (number, optional)
+    *   Retrieves relevant memories based on semantic similarity.
+*   **`delete_memory`**: Deletes a specific memory from storage by its ID.
+    *   **Input:** `memoryId` (string, required), `userId` (string, required), `sessionId` (string, optional), `agentId` (string, optional)
+    *   Permanently removes the specified memory.
     *   Retrieves relevant memories based on semantic similarity.
 
 ## Prerequisites 🔑
@@ -344,3 +347,4 @@ The server recognizes several environment variables that control its behavior:
 ---
 
 Made with ❤️ by Pink Pixel
+
