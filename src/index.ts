@@ -61,14 +61,22 @@ class Mem0MCPServer {
     }
 
     // Initialize Mem0 client - relies on environment variables like OPENAI_API_KEY being set
-    this.mem0Client = new Memory(); // Initialize here
+    // Explicitly configure to use the in-memory vector store for debugging
+    this.mem0Client = new Memory({
+      vectorStore: { // Use camelCase for TS config keys
+        provider: "memory", // Specify in-memory provider
+        config: {
+          collectionName: "mem0_default_collection" // Add required collection name
+        }
+      }
+    });
 
     // Initialize MCP Server
     this.server = new Server( // Initialize here
       {
         // These should match package.json
         name: "@pinkpixel/mem0-mcp", // Match updated package name
-        version: "0.1.1",
+        version: "0.1.3",
       },
       {
         capabilities: {
@@ -98,7 +106,7 @@ class Mem0MCPServer {
       return {
         tools: [
           {
-            name: "mem0_add_memory",
+            name: "add_memory", // Renamed
             description: "Stores a piece of text as a memory in Mem0.",
             inputSchema: {
               type: "object",
@@ -124,7 +132,7 @@ class Mem0MCPServer {
             },
           },
           {
-            name: "mem0_search_memory",
+            name: "search_memory", // Renamed
             description: "Searches stored memories in Mem0 based on a query.",
             inputSchema: {
               type: "object",
@@ -161,7 +169,7 @@ class Mem0MCPServer {
 
       try {
         switch (request.params.name) {
-          case "mem0_add_memory": {
+          case "add_memory": { // Renamed case
             // Extract args using the specific tool type
             const { content, userId, sessionId, metadata } = args as Mem0AddToolArgs; // userId is now guaranteed
             if (!content) {
@@ -181,7 +189,7 @@ class Mem0MCPServer {
             };
           }
 
-          case "mem0_search_memory": {
+          case "search_memory": { // Renamed case
              // Extract args using the specific tool type
             const { query, userId, sessionId, filters } = args as Mem0SearchToolArgs;
             if (!query) {

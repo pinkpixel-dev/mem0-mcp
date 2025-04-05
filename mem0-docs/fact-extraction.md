@@ -1,0 +1,101 @@
+Features
+Custom Fact Extraction Prompt
+Enhance your product experience by adding custom fact extraction prompt tailored to your needs
+
+​
+Introduction to Custom Fact Extraction Prompt
+Custom fact extraction prompt allow you to tailor the behavior of your Mem0 instance to specific use cases or domains. By defining it, you can control how information is extracted from the user’s message.
+
+To create an effective custom fact extraction prompt:
+
+Be specific about the information to extract.
+Provide few-shot examples to guide the LLM.
+Ensure examples follow the format shown below.
+Example of a custom fact extraction prompt:
+
+
+Python
+
+TypeScript
+
+Copy
+custom_fact_extraction_prompt = """
+Please only extract entities containing customer support information, order details, and user information. 
+Here are some few shot examples:
+
+Input: Hi.
+Output: {{"facts" : []}}
+
+Input: The weather is nice today.
+Output: {{"facts" : []}}
+
+Input: My order #12345 hasn't arrived yet.
+Output: {{"facts" : ["Order #12345 not received"]}}
+
+Input: I'm John Doe, and I'd like to return the shoes I bought last week.
+Output: {{"facts" : ["Customer name: John Doe", "Wants to return shoes", "Purchase made last week"]}}
+
+Input: I ordered a red shirt, size medium, but received a blue one instead.
+Output: {{"facts" : ["Ordered red shirt, size medium", "Received blue shirt instead"]}}
+
+Return the facts and customer information in a json format as shown above.
+"""
+Here we initialize the custom fact extraction prompt in the config:
+
+
+Python
+
+TypeScript
+
+Copy
+from mem0 import Memory
+
+config = {
+    "llm": {
+        "provider": "openai",
+        "config": {
+            "model": "gpt-4o",
+            "temperature": 0.2,
+            "max_tokens": 2000,
+        }
+    },
+    "custom_fact_extraction_prompt": custom_fact_extraction_prompt,
+    "version": "v1.1"
+}
+
+m = Memory.from_config(config_dict=config, user_id="alice")
+​
+Example 1
+In this example, we are adding a memory of a user ordering a laptop. As seen in the output, the custom prompt is used to extract the relevant information from the user’s message.
+
+
+Python
+
+TypeScript
+
+Output
+
+Copy
+m.add("Yesterday, I ordered a laptop, the order id is 12345", user_id="alice")
+​
+Example 2
+In this example, we are adding a memory of a user liking to go on hikes. This add message is not specific to the use-case mentioned in the custom prompt. Hence, the memory is not added.
+
+
+Python
+
+TypeScript
+
+Output
+
+Copy
+m.add("I like going to hikes", user_id="alice")
+The custom fact extraction prompt will process both the user and assistant messages to extract relevant information according to the defined format.
+
+Previous
+Custom Update Memory Prompt
+Next
+discord
+x
+github
+linkedin

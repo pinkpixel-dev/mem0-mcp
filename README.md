@@ -1,3 +1,6 @@
+![Mem0 Logo](https://res.cloudinary.com/di7ctlowx/image/upload/v1741739911/mem0-logo_dlssjm.svg)
+
+
 # @pinkpixel/mem0-mcp MCP Server ✨
 
 A Model Context Protocol (MCP) server that integrates with [Mem0.ai](https://mem0.ai/) to provide persistent memory capabilities for LLMs. It allows AI agents to store and retrieve information across sessions.
@@ -8,10 +11,10 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
 
 ### Tools
 
-*   **`mem0_add_memory`**: Stores a piece of text content as a memory associated with a specific `userId`.
+*   **`add_memory`**: Stores a piece of text content as a memory associated with a specific `userId`.
     *   **Input:** `content` (string, required), `userId` (string, required), `sessionId` (string, optional), `metadata` (object, optional)
     *   Stores the provided text, enabling recall in future interactions.
-*   **`mem0_search_memory`**: Searches stored memories based on a natural language query for a specific `userId`.
+*   **`search_memory`**: Searches stored memories based on a natural language query for a specific `userId`.
     *   **Input:** `query` (string, required), `userId` (string, optional), `sessionId` (string, optional), `filters` (object, optional)
     *   Retrieves relevant memories based on semantic similarity.
 
@@ -36,7 +39,7 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
    ```json
    {
      "mcpServers": {
-       "mem0-server": {
+       "mem0-mcp": {
          "command": "npx",
          "args": [
            "-y",
@@ -53,14 +56,14 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
    ```
    **Note:** Replace `"YOUR_OPENAI_API_KEY_HERE"` with your actual OpenAI API key.  
 
-**2. Running from Cloned Repository (for Development/Contribution):**
+**2. Running from Cloned Repository:**
 
    Clone the repository, install dependencies, and build the server (see [Development](#development-) section below). Then, configure your MCP client to run the built script directly using `node`:
 
    ```json
    {
      "mcpServers": {
-       "mem0-dev": {
+       "mem0-mcp": {
          "command": "node",
          "args": [
            "/path/to/your/cloned/mem0-mcp/build/index.js" 
@@ -75,8 +78,6 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
    }
    ```
    **Note:** Replace `/path/to/your/cloned/mem0-mcp/` with the actual absolute path to where you cloned the repository.
-
-
 
 **Important:** Replace `"YOUR_OPENAI_API_KEY_HERE"` with your actual OpenAI API key in the `env` section of the configuration.
 
