@@ -229,6 +229,98 @@ npm run inspector
 
 ## Technical Implementation Notes 🔧
 
+### Advanced Mem0 API Parameters
+
+When using the Cloud Storage mode with the Mem0 API, you can leverage additional parameters for more sophisticated memory management. While not explicitly exposed in the tool schema, these can be included in the `metadata` object when adding memories:
+
+#### Advanced Parameters for `add_memory`:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `metadata` | object | Store additional context about the memory (e.g., location, time, identifiers). This can be used for filtering during retrieval. |
+| `includes` | string | Specific preferences to include in the memory. |
+| `excludes` | string | Specific preferences to exclude from the memory. |
+| `infer` | boolean | Whether to infer memories or directly store messages (default: true). |
+| `output_format` | string | Format version, either v1.0 (default, deprecated) or v1.1 (recommended). |
+| `custom_categories` | object | List of categories with names and descriptions. |
+| `custom_instructions` | string | Project-specific guidelines for handling and organizing memories. |
+| `immutable` | boolean | Whether the memory is immutable (default: false). |
+| `expiration_date` | string | When the memory will expire (format: YYYY-MM-DD). |
+| `org_id` | string | Organization ID associated with this memory. |
+| `project_id` | string | Project ID associated with this memory. |
+| `version` | string | Memory version (v1 is deprecated, v2 recommended for new applications). |
+
+To use these parameters with the MCP server, include them in your metadata object when calling the `add_memory` tool. For example:
+
+```json
+{
+  "content": "Important information to remember",
+  "userId": "user123",
+  "sessionId": "project-abc",
+  "metadata": {
+    "includes": "important context",
+    "excludes": "sensitive data",
+    "immutable": true,
+    "expiration_date": "2025-12-31",
+    "custom_instructions": "Prioritize this memory for financial questions",
+    "version": "v2"
+  }
+}
+```
+
+#### Advanced Parameters for `search_memory`:
+
+The Mem0 v2 search API offers powerful filtering capabilities that can be utilized through the `filters` parameter:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filters` | object | Complex filters with logical operators and comparison conditions |
+| `top_k` | integer | Number of top results to return (default: 10) |
+| `fields` | string[] | Specific fields to include in the response |
+| `rerank` | boolean | Whether to rerank the memories (default: false) |
+| `keyword_search` | boolean | Whether to search based on keywords (default: false) |
+| `filter_memories` | boolean | Whether to filter the memories (default: false) |
+| `threshold` | number | Minimum similarity threshold for results (default: 0.3) |
+| `org_id` | string | Organization ID for filtering memories |
+| `project_id` | string | Project ID for filtering memories |
+
+The `filters` parameter supports complex logical operations (AND, OR) and various comparison operators:
+
+| Operator | Description |
+|----------|-------------|
+| `in` | Matches any of the values specified |
+| `gte` | Greater than or equal to |
+| `lte` | Less than or equal to |
+| `gt` | Greater than |
+| `lt` | Less than |
+| `ne` | Not equal to |
+| `icontains` | Case-insensitive containment check |
+
+Example of using complex filters with the `search_memory` tool:
+
+```json
+{
+  "query": "What are Alice's hobbies?",
+  "userId": "user123",
+  "filters": {
+    "AND": [
+      {
+        "user_id": "alice"
+      },
+      {
+        "agent_id": {"in": ["travel-agent", "sports-agent"]}
+      }
+    ]
+  },
+  "threshold": 0.5,
+  "top_k": 5
+}
+```
+
+This would search for memories related to Alice's hobbies where the user_id is "alice" AND the agent_id is either "travel-agent" OR "sports-agent", returning at most 5 results with a similarity score of at least 0.5.
+
+For more detailed information on these parameters, refer to the [Mem0 API documentation](https://mem0.ai).
+
 ### SafeLogger
 
 The MCP server implements a `SafeLogger` class that selectively redirects console.log calls from the mem0ai library to stderr without disrupting MCP protocol:
