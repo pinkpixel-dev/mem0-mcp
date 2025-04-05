@@ -75,6 +75,8 @@ web_modules/
 .env.test.local
 .env.production.local
 .env.local
+.roo/
+.roo/mcp.json
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
