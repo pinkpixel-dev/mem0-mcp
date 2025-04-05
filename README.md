@@ -60,10 +60,10 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
    ```json
    {
      "mcpServers": {
-       "mem0-dev": { // Use a different name like 'mem0-dev' to avoid conflicts
+       "mem0-dev": {
          "command": "node",
          "args": [
-           "/path/to/your/cloned/mem0-mcp/build/index.js" // Use absolute path
+           "/path/to/your/cloned/mem0-mcp/build/index.js" 
          ],
          "env": {
            "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE"
