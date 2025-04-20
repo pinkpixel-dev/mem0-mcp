@@ -116,7 +116,7 @@ class Mem0MCPServer {
       {
         // These should match package.json
         name: "@pinkpixel/mem0-mcp",
-        version: "0.3.1",
+        version: "0.3.2",
       },
       {
         capabilities: {
@@ -313,7 +313,7 @@ class Mem0MCPServer {
               },
               required: ["memoryId", "userId"],
             },
-          }
+          },
         ],
       };
     });
