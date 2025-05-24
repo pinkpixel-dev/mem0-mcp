@@ -2,8 +2,8 @@
 
 # @pinkpixel/mem0-mcp Project Overview ✨
 
-**Current Version:** 0.3.0  
-**Last Updated:** 2025-04-20
+**Current Version:** 0.3.3
+**Last Updated:** 2025-05-23
 
 ## Project Summary
 
@@ -28,9 +28,10 @@ The project follows a simple architecture:
 ### Key Components
 
 - **Mem0MCPServer Class**: The main class that initializes the server, sets up tool handlers, and implements the core functionality
-- **SafeLogger Class**: A utility class that selectively redirects console.log calls to stderr to avoid interfering with MCP protocol communication
-- **Tool Handlers**: Functions that handle the `add_memory`, `search_memory`, and `delete_memory` tools
-- **Configuration Generator**: A bash script that helps users generate MCP configuration files and start the server
+- **SafeLogger Class**: An innovative utility class that selectively redirects console.log calls from the mem0ai library to stderr without disrupting MCP protocol communication. This solves a critical issue where library output could break the MCP protocol.
+- **Tool Handlers**: Functions that handle the `add_memory`, `search_memory`, and `delete_memory` tools with comprehensive error handling
+- **Configuration Generator**: A sophisticated 403-line bash script with colorful ASCII art, interactive menus, and multiple configuration options
+- **Dynamic Client Initialization**: Smart detection of available API keys to automatically choose between cloud and local storage modes
 
 ## Storage Modes
 
@@ -70,7 +71,6 @@ The project has the following key dependencies:
 
 - **@modelcontextprotocol/sdk (0.6.0)**: For implementing the MCP server
 - **mem0ai (^2.1.14)**: The Node.js SDK for Mem0.ai
-- **tiktoken-node (^0.0.7)**: For tokenization
 
 Development dependencies:
 - **@types/node (^20.11.24)**: TypeScript type definitions for Node.js
@@ -81,13 +81,16 @@ Development dependencies:
 ```
 mem0-mcp/
 ├── src/
-│   └── index.ts         # Main TypeScript file implementing the MCP server
+│   └── index.ts         # Main TypeScript file implementing the MCP server (640 lines)
 ├── build/               # Compiled JavaScript files (generated)
-├── config_generator.sh  # Bash script for generating MCP configuration
+├── vsce/                # VS Code extension files (if applicable)
+├── config_generator.sh  # Interactive bash script for MCP configuration (403 lines)
 ├── package.json         # Project metadata and dependencies
+├── package-lock.json    # Dependency lock file
 ├── tsconfig.json        # TypeScript configuration
-├── README.md            # Project documentation
-├── CHANGELOG.md         # Version history and changes
+├── mem0-logo.svg        # Project logo
+├── README.md            # Comprehensive project documentation (373 lines)
+├── CHANGELOG.md         # Detailed version history and changes (76 lines)
 ├── CONTRIBUTING.md      # Guidelines for contributing to the project
 ├── LICENSE              # MIT License
 └── OVERVIEW.md          # This file - project overview
@@ -114,6 +117,17 @@ The server requires configuration in the MCP client's configuration file (e.g., 
 - Command and arguments to run the server
 - Environment variables for API keys and default user ID
 - Tool permissions
+
+### Interactive Configuration Generator
+
+The project includes a sophisticated bash script (`config_generator.sh`) that provides an interactive menu for:
+
+- 🔧 **Generating mcp.json configurations** with guided setup
+- 📖 **Viewing README.md** documentation
+- 🔄 **Restarting the Mem0-MCP server** with environment variables
+- 🎨 **Colorful ASCII banner** and styled output
+- 💾 **Multiple save options** (Cursor IDE, custom file, clipboard)
+- ⚙️ **Support for both installation methods** (local build vs npm package)
 
 Example configuration for cloud storage mode:
 
@@ -156,23 +170,36 @@ For development:
 
 **Challenge**: MCP servers communicate over stdout, and any libraries or code that writes to stdout may interfere with the protocol.
 
-**Solution**: The project implements a `SafeLogger` class that selectively redirects console.log calls from the mem0ai library to stderr without disrupting MCP protocol communication.
+**Solution**: The project implements an innovative `SafeLogger` class that:
+- Intercepts console.log calls and examines stack traces to determine source
+- Only redirects log calls from mem0ai library or project code to stderr
+- Preserves clean stdout for MCP protocol communication
+- Automatically cleans up resources on process exit
 
 ### Storage Mode Selection
 
 **Challenge**: Supporting both cloud and local storage modes with different requirements and capabilities.
 
-**Solution**: The server dynamically selects the storage mode based on available environment variables and initializes the appropriate client.
+**Solution**: The server dynamically selects the storage mode based on available environment variables and initializes the appropriate client using dynamic imports to handle TypeScript compatibility issues.
+
+### Memory Deletion Complexity
+
+**Challenge**: The mem0ai library doesn't expose consistent delete methods across cloud and local modes.
+
+**Solution**: Implements fallback strategies using direct API calls for cloud mode and accessing internal vectorstore methods for local mode, with proper error handling for unsupported operations.
 
 ## Future Improvements
 
 Potential areas for future improvement include:
 
-1. Adding support for more advanced filtering options
-2. Implementing batch operations for adding or deleting multiple memories
-3. Adding support for memory versioning and history
-4. Improving error handling and recovery mechanisms
-5. Adding more comprehensive logging and monitoring capabilities
+1. **Advanced Filtering**: Expand support for more complex filtering options and search capabilities
+2. **Batch Operations**: Implement batch operations for adding or deleting multiple memories efficiently
+3. **Memory Versioning**: Add support for memory versioning and history tracking
+4. **Enhanced Error Handling**: Improve error handling and recovery mechanisms with more detailed error messages
+5. **Monitoring & Analytics**: Add comprehensive logging, monitoring, and usage analytics capabilities
+6. **Performance Optimization**: Optimize memory search performance and implement caching strategies
+7. **Testing Framework**: Add comprehensive unit and integration tests
+8. **Documentation**: Expand API documentation with more examples and use cases
 
 ## License
 

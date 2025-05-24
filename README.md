@@ -1,5 +1,13 @@
 ![Mem0 Logo](https://res.cloudinary.com/di7ctlowx/image/upload/v1741739911/mem0-logo_dlssjm.svg)
 
+[![npm version](https://badge.fury.io/js/@pinkpixel%2Fmem0-mcp.svg)](https://badge.fury.io/js/@pinkpixel%2Fmem0-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3%2B-blue.svg)](https://www.typescriptlang.org/)
+[![MCP](https://img.shields.io/badge/MCP-0.6.0-purple.svg)](https://modelcontextprotocol.io/)
+[![Mem0](https://img.shields.io/badge/Mem0-2.1%2B-orange.svg)](https://mem0.ai)
+[![Downloads](https://img.shields.io/npm/dm/@pinkpixel/mem0-mcp.svg)](https://www.npmjs.com/package/@pinkpixel/mem0-mcp)
+[![GitHub Stars](https://img.shields.io/github/stars/pinkpixel-dev/mem0-mcp.svg)](https://github.com/pinkpixel-dev/mem0-mcp)
 
 # @pinkpixel/mem0-mcp MCP Server ✨
 
@@ -11,15 +19,19 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
 
 ### Tools
 *   **`add_memory`**: Stores a piece of text content as a memory associated with a specific `userId`.
-    *   **Input:** `content` (string, required), `userId` (string, required), `sessionId` (string, optional), `agentId` (string, optional), `metadata` (object, optional)
+    *   **Required:** `content` (string), `userId` (string)
+    *   **Optional:** `sessionId` (string), `agentId` (string), `orgId` (string), `projectId` (string), `metadata` (object)
+    *   **Advanced (Cloud API):** `includes` (string), `excludes` (string), `infer` (boolean), `outputFormat` (string), `customCategories` (object), `customInstructions` (string), `immutable` (boolean), `expirationDate` (string)
     *   Stores the provided text, enabling recall in future interactions.
 *   **`search_memory`**: Searches stored memories based on a natural language query for a specific `userId`.
-    *   **Input:** `query` (string, required), `userId` (string, required), `sessionId` (string, optional), `agentId` (string, optional), `filters` (object, optional), `threshold` (number, optional)
+    *   **Required:** `query` (string), `userId` (string)
+    *   **Optional:** `sessionId` (string), `agentId` (string), `orgId` (string), `projectId` (string), `filters` (object), `threshold` (number)
+    *   **Advanced (Cloud API):** `topK` (number), `fields` (array), `rerank` (boolean), `keywordSearch` (boolean), `filterMemories` (boolean)
     *   Retrieves relevant memories based on semantic similarity.
 *   **`delete_memory`**: Deletes a specific memory from storage by its ID.
-    *   **Input:** `memoryId` (string, required), `userId` (string, required), `sessionId` (string, optional), `agentId` (string, optional)
+    *   **Required:** `memoryId` (string), `userId` (string)
+    *   **Optional:** `agentId` (string), `orgId` (string), `projectId` (string)
     *   Permanently removes the specified memory.
-    *   Retrieves relevant memories based on semantic similarity.
 
 ## Prerequisites 🔑
 
@@ -37,19 +49,77 @@ This server supports two storage modes:
 
 ## Installation & Configuration ⚙️
 
-You can run this server in two main ways:
+You can run this server in three main ways:
 
-### 1. Using `npx` (Recommended for quick use)
+### 1. Global Installation (Recommended for frequent use)
 
-Install the package globally using npm:
+Install the package globally and use the `mem0-mcp` command:
 
 ```bash
 npm install -g @pinkpixel/mem0-mcp
 ```
 
+After global installation, you can run the server directly:
+
+```bash
+mem0-mcp
+```
+
+Configure your MCP client to use the global command:
+
+#### Cloud Storage Configuration (Global Install)
+
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "mem0-mcp",
+      "args": [],
+      "env": {
+        "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123",
+        "ORG_ID": "your-org-id",
+        "PROJECT_ID": "your-project-id"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory",
+        "delete_memory"
+      ]
+    }
+  }
+}
+```
+
+#### Local Storage Configuration (Global Install)
+
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "mem0-mcp",
+      "args": [],
+      "env": {
+        "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory",
+        "delete_memory"
+      ]
+    }
+  }
+}
+```
+
+### 2. Using `npx` (Recommended for occasional use)
+
 Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) to run the server using `npx`:
 
-#### Cloud Storage Configuration (Recommended)
+#### Cloud Storage Configuration (npx)
 
 ```json
 {
@@ -62,21 +132,22 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
       ],
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
-        "DEFAULT_USER_ID": "user123"
+        "DEFAULT_USER_ID": "user123",
+        "ORG_ID": "your-org-id",
+        "PROJECT_ID": "your-project-id"
       },
       "disabled": false,
       "alwaysAllow": [
         "add_memory",
-        "search_memory"
+        "search_memory",
+        "delete_memory"
       ]
     }
   }
 }
 ```
 
-**Note:** Replace `"YOUR_MEM0_API_KEY_HERE"` with your actual Mem0 API key.
-
-#### Local Storage Configuration (Alternative)
+#### Local Storage Configuration (npx)
 
 ```json
 {
@@ -94,23 +165,22 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
       "disabled": false,
       "alwaysAllow": [
         "add_memory",
-        "search_memory"
+        "search_memory",
+        "delete_memory"
       ]
     }
   }
 }
 ```
 
-**Note:** Replace `"YOUR_OPENAI_API_KEY_HERE"` with your actual OpenAI API key.
-
-### 2. Running from Cloned Repository
+### 3. Running from Cloned Repository
 
 **Note: This method requires you to git clone the repository first.**
 
 Clone the repository, install dependencies, and build the server:
 
 ```bash
-git clone https://github.com/pinkpixel-dev/mem0-mcp 
+git clone https://github.com/pinkpixel-dev/mem0-mcp
 cd mem0-mcp
 npm install
 npm run build
@@ -118,23 +188,52 @@ npm run build
 
 Then, configure your MCP client to run the built script directly using `node`:
 
+#### Cloud Storage Configuration (Cloned Repository)
+
 ```json
 {
   "mcpServers": {
     "mem0-mcp": {
       "command": "node",
       "args": [
-        "/absolute/path/to/mem0-mcp/build/index.js" 
+        "/absolute/path/to/mem0-mcp/build/index.js"
       ],
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
-        "DEFAULT_USER_ID": "user123"
-        // OR use "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE" for local storage
+        "DEFAULT_USER_ID": "user123",
+        "ORG_ID": "your-org-id",
+        "PROJECT_ID": "your-project-id"
       },
       "disabled": false,
       "alwaysAllow": [
         "add_memory",
-        "search_memory"
+        "search_memory",
+        "delete_memory"
+      ]
+    }
+  }
+}
+```
+
+#### Local Storage Configuration (Cloned Repository)
+
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/mem0-mcp/build/index.js"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory",
+        "delete_memory"
       ]
     }
   }
@@ -167,8 +266,10 @@ Example configuration using `DEFAULT_USER_ID`:
       ],
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
-        "DEFAULT_USER_ID": "user123" 
-      },
+        "DEFAULT_USER_ID": "user123",
+        "ORG_ID": "your-org-id",
+        "PROJECT_ID": "your-project-id"
+      }
     }
   }
 }
@@ -177,7 +278,7 @@ Example configuration using `DEFAULT_USER_ID`:
 Or when running directly with `node`:
 
 ```bash
-git clone https://github.com/pinkpixel-dev/mem0-mcp 
+git clone https://github.com/pinkpixel-dev/mem0-mcp
 cd mem0-mcp
 npm install
 npm run build
@@ -193,8 +294,8 @@ npm run build
       ],
       "env": {
         "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
-        "DEFAULT_USER_ID": "user123" 
-      },
+        "DEFAULT_USER_ID": "user123"
+      }
     }
   }
 }
@@ -223,7 +324,7 @@ npm run build
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/pinkpixel-dev/mem0-mcp 
+git clone https://github.com/pinkpixel-dev/mem0-mcp
 cd mem0-mcp
 npm install
 ```
@@ -365,8 +466,13 @@ The server recognizes several environment variables that control its behavior:
 - `MEM0_API_KEY`: API key for cloud storage mode
 - `OPENAI_API_KEY`: API key for local storage mode (embeddings)
 - `DEFAULT_USER_ID`: Default user ID for memory operations
+- `ORG_ID` / `YOUR_ORG_ID`: Default organization ID for cloud storage mode
+- `PROJECT_ID` / `YOUR_PROJECT_ID`: Default project ID for cloud storage mode
+
+**Important Notes:**
+- **Session IDs** are passed as tool parameters (e.g., `"sessionId": "my-session"`), not environment variables
+- When using the tools, parameters provided directly (e.g., `orgId`, `projectId`, `sessionId`) take precedence over environment variables, giving you maximum flexibility
 
 ---
 
 Made with ❤️ by Pink Pixel
-

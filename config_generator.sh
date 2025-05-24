@@ -20,7 +20,7 @@ show_banner() {
     M3='\033[1;34m'  # Blue
     C='\033[1;35m'  # Purple
     P='\033[1;38;5;213m'  # Pink
-    
+
     # MEM0-MCP logo extracted from SVG
     echo -e "${M1}███╗   ███╗${E1}███████╗${M2}███╗   ███╗${ZERO} ██████╗ ${M3}███╗   ███╗${C} ██████╗${P}██████╗ ${RESET}"
     echo -e "${M1}████╗ ████║${E1}██╔════╝${M2}████╗ ████║${ZERO}██╔═══██╗${M3}████╗ ████║${C}██╔════╝${P}██╔══██╗${RESET}"
@@ -28,7 +28,7 @@ show_banner() {
     echo -e "${M1}██║╚██╔╝██║${E1}██╔══╝  ${M2}██║╚██╔╝██║${ZERO}██║   ██║${M3}██║╚██╔╝██║${C}██║     ${P}██╔═══╝ ${RESET}"
     echo -e "${M1}██║ ╚═╝ ██║${E1}███████╗${M2}██║ ╚═╝ ██║${ZERO}╚██████╔╝${M3}██║ ╚═╝ ██║${C}╚██████╗${P}██║     ${RESET}"
     echo -e "${M1}╚═╝     ╚═╝${E1}╚══════╝${M2}╚═╝     ╚═╝${ZERO} ╚═════╝ ${M3}╚═╝     ╚═╝${C} ╚═════╝${P}╚═╝     ${RESET}"
-    
+
     echo -e "\n${YELLOW}${BOLD}✨ Persistent Memory for LLMs ✨${RESET}\n"
 }
 
@@ -49,7 +49,7 @@ view_readme() {
 save_config() {
     local config="$1"
     local filename="$2"
-    
+
     echo "$config" > "$filename"
     echo -e "${GREEN}${BOLD}✅ Configuration saved to ${filename}${RESET}"
 }
@@ -57,7 +57,7 @@ save_config() {
 # Function to copy to clipboard (if available)
 copy_to_clipboard() {
     local config="$1"
-    
+
     if command -v xclip &> /dev/null; then
         echo "$config" | xclip -selection clipboard
         echo -e "${GREEN}${BOLD}✅ Configuration copied to clipboard${RESET}"
@@ -84,23 +84,23 @@ generate_config() {
     echo -ne "\n${CYAN}Choose an option (1-2):${RESET} "
     read storage_choice
     echo
-    
+
     # Default to cloud storage if invalid choice
     if [ "$storage_choice" != "2" ]; then
         storage_choice="1"
     fi
-    
+
     # Get API keys based on storage choice
     if [ "$storage_choice" == "1" ]; then
         echo -e "${CYAN}Mem0 API Key (required for cloud storage):${RESET}"
         read -s MEM0_API_KEY
         echo
-        
+
         if [ -z "$MEM0_API_KEY" ]; then
             echo -e "${RED}Error: Mem0 API Key is required for cloud storage.${RESET}"
             return 1
         fi
-        
+
         # Optionally get OpenAI API Key as backup
         echo -e "${CYAN}OpenAI API Key (optional, for fallback to local storage):${RESET}"
         read -s OPENAI_API_KEY
@@ -109,12 +109,12 @@ generate_config() {
         echo -e "${CYAN}OpenAI API Key (required for local storage):${RESET}"
         read -s OPENAI_API_KEY
         echo
-        
+
         if [ -z "$OPENAI_API_KEY" ]; then
             echo -e "${RED}Error: OpenAI API Key is required for local storage.${RESET}"
             return 1
         fi
-        
+
         # Optionally get Mem0 API Key for future use
         echo -e "${CYAN}Mem0 API Key (optional, for future use with cloud storage):${RESET}"
         read -s MEM0_API_KEY
@@ -128,65 +128,78 @@ generate_config() {
         DEFAULT_USER_ID="user"
     fi
 
-    # Get Session ID
-    echo -e "${CYAN}Session ID (e.g., 'coding-session', 'project-xyz'):${RESET}"
-    echo -e "${YELLOW}Note: This is optional and helps organize memories within a user's account${RESET}"
-    echo -e "${YELLOW}      (Mem0 API uses this as 'run_id' internally)${RESET}"
-    read SESSION_ID
-    
-    # Ask if they want to use local build or npm package
+    # Note about Session ID
+    echo -e "${CYAN}${BOLD}Session ID Information:${RESET}"
+    echo -e "${YELLOW}Session IDs are passed as parameters when calling tools (not environment variables)${RESET}"
+    echo -e "${YELLOW}Example: {\"sessionId\": \"coding-session\"} in tool calls${RESET}"
+    echo -e "${YELLOW}This helps organize memories within a user's account${RESET}"
+
+    # Get Organization ID
+    echo -e "${CYAN}Organization ID (for Mem0 Cloud API):${RESET}"
+    echo -e "${YELLOW}Note: This is optional and only used with cloud storage mode${RESET}"
+    echo -e "${YELLOW}      Can also be set via ORG_ID environment variable${RESET}"
+    read ORG_ID
+
+    # Get Project ID
+    echo -e "${CYAN}Project ID (for Mem0 Cloud API):${RESET}"
+    echo -e "${YELLOW}Note: This is optional and only used with cloud storage mode${RESET}"
+    echo -e "${YELLOW}      Can also be set via PROJECT_ID environment variable${RESET}"
+    read PROJECT_ID
+
+    # Ask if they want to use local build, npm package, or global install
     echo -e "${CYAN}${BOLD}Installation Method:${RESET}"
     echo -e "1. ${BOLD}Local Build${RESET} (Use if you've cloned the repository and built it)"
-    echo -e "2. ${BOLD}NPM Package${RESET} (Use npx to run the published package - recommended)"
-    echo -ne "\n${CYAN}Choose an option (1-2):${RESET} "
+    echo -e "2. ${BOLD}NPM Package (npx)${RESET} (Use npx to run the published package)"
+    echo -e "3. ${BOLD}Global Install${RESET} (Install globally and use mem0-mcp command - recommended)"
+    echo -ne "\n${CYAN}Choose an option (1-3):${RESET} "
     read install_method
     echo
-    
-    # Default to NPM package if invalid choice
-    if [ "$install_method" != "1" ]; then
-        install_method="2"
+
+    # Default to Global Install if invalid choice
+    if [ "$install_method" != "1" ] && [ "$install_method" != "2" ]; then
+        install_method="3"
     fi
-    
+
     # Get the current directory where the script is running
     CURRENT_DIR=$(pwd)
-    
+
     # Generate a complete mcp.json configuration
     echo -e "\n${YELLOW}${BOLD}Configuration for mcp.json:${RESET}\n"
-    
+
     # Create the environment variables section based on chosen configuration
     ENV_SECTION="{"
-    
+
     # Add API keys based on chosen storage mode
     if [ -n "$MEM0_API_KEY" ]; then
         ENV_SECTION="${ENV_SECTION}
         \"MEM0_API_KEY\": \"${MEM0_API_KEY}\","
     fi
-    
+
     if [ -n "$OPENAI_API_KEY" ]; then
         ENV_SECTION="${ENV_SECTION}
         \"OPENAI_API_KEY\": \"${OPENAI_API_KEY}\","
     fi
-    
-    # Add user ID and session ID
+
+    # Add user ID
     ENV_SECTION="${ENV_SECTION}
         \"DEFAULT_USER_ID\": \"${DEFAULT_USER_ID}\""
-    
-    if [ -n "$SESSION_ID" ]; then
-        # For cloud storage (Mem0 API), use RUN_ID
-        if [ "$storage_choice" == "1" ]; then
-            ENV_SECTION="${ENV_SECTION},
-            \"RUN_ID\": \"${SESSION_ID}\""
-        else
-            # For local storage, use SESSION_ID
-            ENV_SECTION="${ENV_SECTION},
-            \"SESSION_ID\": \"${SESSION_ID}\""
-        fi
+
+    # Add organization ID if provided
+    if [ -n "$ORG_ID" ]; then
+        ENV_SECTION="${ENV_SECTION},
+        \"ORG_ID\": \"${ORG_ID}\""
     fi
-    
+
+    # Add project ID if provided
+    if [ -n "$PROJECT_ID" ]; then
+        ENV_SECTION="${ENV_SECTION},
+        \"PROJECT_ID\": \"${PROJECT_ID}\""
+    fi
+
     # Close the environment section
     ENV_SECTION="${ENV_SECTION}
       }"
-    
+
     # Create command and args based on installation method
     if [ "$install_method" == "1" ]; then
         # Local build
@@ -194,15 +207,19 @@ generate_config() {
         ARGS="[
         \"${CURRENT_DIR}/build/index.js\"
       ]"
-    else
-        # NPM package
+    elif [ "$install_method" == "2" ]; then
+        # NPM package (npx)
         COMMAND="npx"
         ARGS="[
         \"-y\",
         \"@pinkpixel/mem0-mcp\"
       ]"
+    else
+        # Global install
+        COMMAND="mem0-mcp"
+        ARGS="[]"
     fi
-    
+
     # Construct the full configuration
     CONFIG=$(cat << EOF
 {
@@ -224,7 +241,7 @@ EOF
 
     # Display the configuration with syntax highlighting
     echo -e "${BLUE}${CONFIG}${RESET}\n"
-    
+
     # Ask what the user wants to do with the configuration
     echo -e "${CYAN}${BOLD}What would you like to do with this configuration?${RESET}"
     echo -e "1. ${BOLD}Save to .cursor/mcp.json${RESET} (for Cursor IDE)"
@@ -234,7 +251,7 @@ EOF
     echo -ne "\n${CYAN}Choose an option (1-4):${RESET} "
     read config_action
     echo
-    
+
     case $config_action in
         1)
             # Save to .cursor/mcp.json
@@ -264,105 +281,146 @@ EOF
 # Function to restart the Mem0-MCP server if it's running
 restart_mem0_mcp() {
     echo -e "${CYAN}${BOLD}Restarting Mem0-MCP Server...${RESET}\n"
-    
+
     # Check if the server is running
     PID=$(pgrep -f "mem0-mcp|build/index.js")
-    
+
     if [ -n "$PID" ]; then
         echo -e "${YELLOW}Found running Mem0-MCP process (PID: $PID). Stopping...${RESET}"
         kill $PID
         sleep 1
-        
+
         # Check if process was stopped
         if kill -0 $PID 2>/dev/null; then
             echo -e "${RED}Process is still running. Forcing termination...${RESET}"
             kill -9 $PID
             sleep 1
         fi
-        
+
         echo -e "${GREEN}Process stopped.${RESET}"
     else
         echo -e "${YELLOW}No running Mem0-MCP process found.${RESET}"
     fi
-    
+
     # Ask how to start the server
     echo -e "\n${CYAN}${BOLD}How would you like to start Mem0-MCP?${RESET}"
     echo -e "1. ${BOLD}Use local build${RESET} (node build/index.js)"
     echo -e "2. ${BOLD}Use npm package${RESET} (npx -y @pinkpixel/mem0-mcp)"
-    echo -ne "\n${CYAN}Choose an option (1-2):${RESET} "
+    echo -e "3. ${BOLD}Use global install${RESET} (mem0-mcp command)"
+    echo -ne "\n${CYAN}Choose an option (1-3):${RESET} "
     read start_method
     echo
-    
+
     # Set environment variables
     echo -e "${CYAN}${BOLD}Enter environment variables (leave empty to skip):${RESET}"
-    
+
     echo -e "${CYAN}Mem0 API Key (for cloud storage):${RESET}"
     read -s MEM0_API_KEY
     echo
-    
+
     echo -e "${CYAN}OpenAI API Key (for local storage):${RESET}"
     read -s OPENAI_API_KEY
     echo
-    
+
     echo -e "${CYAN}Default User ID:${RESET}"
     read DEFAULT_USER_ID
-    
-    echo -e "${CYAN}Session ID/Run ID:${RESET}"
-    echo -e "${YELLOW}(Mem0 API uses this as 'run_id' internally)${RESET}"
-    read SESSION_ID
-    
+
+    echo -e "${CYAN}Organization ID (for Mem0 Cloud API):${RESET}"
+    read ORG_ID
+
+    echo -e "${CYAN}Project ID (for Mem0 Cloud API):${RESET}"
+    read PROJECT_ID
+
+    echo -e "${YELLOW}Note: Session IDs are passed as tool parameters, not environment variables${RESET}"
+
     # Run the server based on selected method
     if [ "$start_method" == "1" ]; then
         # Local build
         echo -e "${GREEN}Starting Mem0-MCP from local build...${RESET}"
-        
+
         # Build the command with environment variables
         cmd="node build/index.js"
-        
+
         if [ -n "$MEM0_API_KEY" ]; then
             cmd="MEM0_API_KEY=$MEM0_API_KEY $cmd"
         fi
-        
+
         if [ -n "$OPENAI_API_KEY" ]; then
             cmd="OPENAI_API_KEY=$OPENAI_API_KEY $cmd"
         fi
-        
+
         if [ -n "$DEFAULT_USER_ID" ]; then
             cmd="DEFAULT_USER_ID=$DEFAULT_USER_ID $cmd"
         fi
-        
-        if [ -n "$SESSION_ID" ]; then
-            # Set both SESSION_ID and RUN_ID to ensure compatibility
-            cmd="SESSION_ID=$SESSION_ID RUN_ID=$SESSION_ID $cmd"
+
+        if [ -n "$ORG_ID" ]; then
+            cmd="ORG_ID=$ORG_ID $cmd"
         fi
-        
+
+        if [ -n "$PROJECT_ID" ]; then
+            cmd="PROJECT_ID=$PROJECT_ID $cmd"
+        fi
+
+        # Run in background
+        eval "$cmd &"
+        echo -e "${GREEN}Mem0-MCP started with PID: $!${RESET}"
+    elif [ "$start_method" == "2" ]; then
+        # NPM package
+        echo -e "${GREEN}Starting Mem0-MCP from npm package...${RESET}"
+
+        # Build the command with environment variables
+        cmd="npx -y @pinkpixel/mem0-mcp"
+
+        if [ -n "$MEM0_API_KEY" ]; then
+            cmd="MEM0_API_KEY=$MEM0_API_KEY $cmd"
+        fi
+
+        if [ -n "$OPENAI_API_KEY" ]; then
+            cmd="OPENAI_API_KEY=$OPENAI_API_KEY $cmd"
+        fi
+
+        if [ -n "$DEFAULT_USER_ID" ]; then
+            cmd="DEFAULT_USER_ID=$DEFAULT_USER_ID $cmd"
+        fi
+
+        if [ -n "$ORG_ID" ]; then
+            cmd="ORG_ID=$ORG_ID $cmd"
+        fi
+
+        if [ -n "$PROJECT_ID" ]; then
+            cmd="PROJECT_ID=$PROJECT_ID $cmd"
+        fi
+
         # Run in background
         eval "$cmd &"
         echo -e "${GREEN}Mem0-MCP started with PID: $!${RESET}"
     else
-        # NPM package
-        echo -e "${GREEN}Starting Mem0-MCP from npm package...${RESET}"
-        
+        # Global install
+        echo -e "${GREEN}Starting Mem0-MCP from global install...${RESET}"
+
         # Build the command with environment variables
-        cmd="npx -y @pinkpixel/mem0-mcp"
-        
+        cmd="mem0-mcp"
+
         if [ -n "$MEM0_API_KEY" ]; then
             cmd="MEM0_API_KEY=$MEM0_API_KEY $cmd"
         fi
-        
+
         if [ -n "$OPENAI_API_KEY" ]; then
             cmd="OPENAI_API_KEY=$OPENAI_API_KEY $cmd"
         fi
-        
+
         if [ -n "$DEFAULT_USER_ID" ]; then
             cmd="DEFAULT_USER_ID=$DEFAULT_USER_ID $cmd"
         fi
-        
-        if [ -n "$SESSION_ID" ]; then
-            # Set both SESSION_ID and RUN_ID to ensure compatibility
-            cmd="SESSION_ID=$SESSION_ID RUN_ID=$SESSION_ID $cmd"
+
+        if [ -n "$ORG_ID" ]; then
+            cmd="ORG_ID=$ORG_ID $cmd"
         fi
-        
+
+        if [ -n "$PROJECT_ID" ]; then
+            cmd="PROJECT_ID=$PROJECT_ID $cmd"
+        fi
+
         # Run in background
         eval "$cmd &"
         echo -e "${GREEN}Mem0-MCP started with PID: $!${RESET}"
@@ -379,11 +437,11 @@ main() {
         echo -e "2. ${BOLD}View README.md${RESET}"
         echo -e "3. ${BOLD}Restart Mem0-MCP Server${RESET}"
         echo -e "4. ${BOLD}Exit${RESET}"
-        
+
         echo -ne "\n${CYAN}Choose an option (1-4):${RESET} "
         read choice
         echo
-        
+
         case $choice in
             1) generate_config ;;
             2) view_readme ;;
@@ -391,7 +449,7 @@ main() {
             4) echo -e "${GREEN}Goodbye!${RESET}"; exit 0 ;;
             *) echo -e "${RED}Invalid option. Please try again.${RESET}\n" ;;
         esac
-        
+
         echo -e "\nPress Enter to return to menu..."
         read
         clear
@@ -400,4 +458,4 @@ main() {
 }
 
 # Run the main function
-main 
+main

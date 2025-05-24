@@ -71,7 +71,18 @@ interface Mem0AddToolArgs {
   userId: string;
   sessionId?: string;
   agentId?: string;
+  orgId?: string;
+  projectId?: string;
   metadata?: any;
+  // Advanced Mem0 API parameters
+  includes?: string;
+  excludes?: string;
+  infer?: boolean;
+  outputFormat?: string;
+  customCategories?: any;
+  customInstructions?: string;
+  immutable?: boolean;
+  expirationDate?: string;
 }
 
 interface Mem0SearchToolArgs {
@@ -79,14 +90,24 @@ interface Mem0SearchToolArgs {
   userId: string;
   sessionId?: string;
   agentId?: string;
+  orgId?: string;
+  projectId?: string;
   filters?: any;
   threshold?: number;
+  // Advanced Mem0 API search parameters
+  topK?: number;
+  fields?: string[];
+  rerank?: boolean;
+  keywordSearch?: boolean;
+  filterMemories?: boolean;
 }
 
 interface Mem0DeleteToolArgs {
   memoryId: string;
   userId: string;
   agentId?: string;
+  orgId?: string;
+  projectId?: string;
 }
 
 // Message type for Mem0 API
@@ -116,7 +137,7 @@ class Mem0MCPServer {
       {
         // These should match package.json
         name: "@pinkpixel/mem0-mcp",
-        version: "0.3.2",
+        version: "0.3.4",
       },
       {
         capabilities: {
@@ -250,9 +271,49 @@ class Mem0MCPServer {
                   type: "string",
                   description: "Optional agent ID to associate with the memory (for cloud API).",
                 },
+                orgId: {
+                  type: "string",
+                  description: "Optional organization ID for the memory (for cloud API).",
+                },
+                projectId: {
+                  type: "string",
+                  description: "Optional project ID for the memory (for cloud API).",
+                },
                 metadata: {
                   type: "object",
                   description: "Optional key-value metadata.",
+                },
+                includes: {
+                  type: "string",
+                  description: "Optional specific preferences to include in the memory (for cloud API).",
+                },
+                excludes: {
+                  type: "string",
+                  description: "Optional specific preferences to exclude from the memory (for cloud API).",
+                },
+                infer: {
+                  type: "boolean",
+                  description: "Optional whether to infer memories or directly store messages (default: true, for cloud API).",
+                },
+                outputFormat: {
+                  type: "string",
+                  description: "Optional format version, either v1.0 (deprecated) or v1.1 (recommended, for cloud API).",
+                },
+                customCategories: {
+                  type: "object",
+                  description: "Optional list of categories with names and descriptions (for cloud API).",
+                },
+                customInstructions: {
+                  type: "string",
+                  description: "Optional project-specific guidelines for handling and organizing memories (for cloud API).",
+                },
+                immutable: {
+                  type: "boolean",
+                  description: "Optional whether the memory is immutable (default: false, for cloud API).",
+                },
+                expirationDate: {
+                  type: "string",
+                  description: "Optional when the memory will expire (format: YYYY-MM-DD, for cloud API).",
                 },
               },
               required: ["content", "userId"],
@@ -280,6 +341,14 @@ class Mem0MCPServer {
                   type: "string",
                   description: "Optional agent ID to filter search (for cloud API).",
                 },
+                orgId: {
+                  type: "string",
+                  description: "Optional organization ID to filter search (for cloud API).",
+                },
+                projectId: {
+                  type: "string",
+                  description: "Optional project ID to filter search (for cloud API).",
+                },
                 filters: {
                   type: "object",
                   description: "Optional key-value filters for metadata.",
@@ -287,6 +356,27 @@ class Mem0MCPServer {
                 threshold: {
                   type: "number",
                   description: "Optional similarity threshold for results (for cloud API).",
+                },
+                topK: {
+                  type: "number",
+                  description: "Optional number of top results to return (default: 10, for cloud API).",
+                },
+                fields: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Optional specific fields to include in the response (for cloud API).",
+                },
+                rerank: {
+                  type: "boolean",
+                  description: "Optional whether to rerank the memories (default: false, for cloud API).",
+                },
+                keywordSearch: {
+                  type: "boolean",
+                  description: "Optional whether to search based on keywords (default: false, for cloud API).",
+                },
+                filterMemories: {
+                  type: "boolean",
+                  description: "Optional whether to filter the memories (default: false, for cloud API).",
                 },
               },
               required: ["query", "userId"],
@@ -309,6 +399,14 @@ class Mem0MCPServer {
                 agentId: {
                   type: "string",
                   description: "Optional agent ID associated with the memory (for cloud API).",
+                },
+                orgId: {
+                  type: "string",
+                  description: "Optional organization ID associated with the memory (for cloud API).",
+                },
+                projectId: {
+                  type: "string",
+                  description: "Optional project ID associated with the memory (for cloud API).",
                 },
               },
               required: ["memoryId", "userId"],
@@ -355,7 +453,11 @@ class Mem0MCPServer {
    * Handles adding a memory using either local or cloud client.
    */
   private async handleAddMemory(args: Mem0AddToolArgs): Promise<any> {
-    const { content, userId, sessionId, agentId, metadata } = args;
+    const {
+      content, userId, sessionId, agentId, orgId, projectId, metadata,
+      includes, excludes, infer, outputFormat, customCategories,
+      customInstructions, immutable, expirationDate
+    } = args;
 
     if (!content) {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: content");
@@ -369,9 +471,9 @@ class Mem0MCPServer {
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get organization and project IDs
-        const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
-        const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        // Get organization and project IDs - parameter takes precedence over environment
+        const finalOrgId = orgId || process.env.YOUR_ORG_ID || process.env.ORG_ID;
+        const finalProjectId = projectId || process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
 
         // Format message for the cloud API
         const messages: Mem0Message[] = [{
@@ -386,12 +488,22 @@ class Mem0MCPServer {
         };
 
         // Add organization and project IDs if available
-        if (orgId) options.org_id = orgId;
-        if (projectId) options.project_id = projectId;
+        if (finalOrgId) options.org_id = finalOrgId;
+        if (finalProjectId) options.project_id = finalProjectId;
 
         if (sessionId) options.run_id = sessionId;
         if (agentId) options.agent_id = agentId;
         if (metadata) options.metadata = metadata;
+
+        // Add advanced Mem0 API parameters
+        if (includes) options.includes = includes;
+        if (excludes) options.excludes = excludes;
+        if (infer !== undefined) options.infer = infer;
+        if (outputFormat) options.output_format = outputFormat;
+        if (customCategories) options.custom_categories = customCategories;
+        if (customInstructions) options.custom_instructions = customInstructions;
+        if (immutable !== undefined) options.immutable = immutable;
+        if (expirationDate) options.expiration_date = expirationDate;
 
         // API call
         const result = await this.cloudClient.add(messages, options);
@@ -440,7 +552,10 @@ class Mem0MCPServer {
    * Handles searching memories using either local or cloud client.
    */
   private async handleSearchMemory(args: Mem0SearchToolArgs): Promise<any> {
-    const { query, userId, sessionId, agentId, filters, threshold } = args;
+    const {
+      query, userId, sessionId, agentId, orgId, projectId, filters, threshold,
+      topK, fields, rerank, keywordSearch, filterMemories
+    } = args;
 
     if (!query) {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: query");
@@ -454,9 +569,9 @@ class Mem0MCPServer {
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get organization and project IDs
-        const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
-        const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        // Get organization and project IDs - parameter takes precedence over environment
+        const finalOrgId = orgId || process.env.YOUR_ORG_ID || process.env.ORG_ID;
+        const finalProjectId = projectId || process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
 
         // Cloud API options
         const options: any = {
@@ -465,13 +580,14 @@ class Mem0MCPServer {
         };
 
         // Add organization and project IDs if available
-        if (orgId) options.org_id = orgId;
-        if (projectId) options.project_id = projectId;
+        if (finalOrgId) options.org_id = finalOrgId;
+        if (finalProjectId) options.project_id = finalProjectId;
 
         // Map sessionId to run_id for Mem0 API compatibility
         if (sessionId) options.run_id = sessionId;
         if (agentId) options.agent_id = agentId;
         if (filters) options.filters = filters;
+
         // Only add threshold if it's a valid number (not null or undefined)
         if (threshold !== undefined && threshold !== null) {
           options.threshold = threshold;
@@ -479,6 +595,13 @@ class Mem0MCPServer {
           // Use the default threshold value from Mem0 API (0.3)
           options.threshold = 0.3;
         }
+
+        // Add advanced search parameters
+        if (topK !== undefined) options.top_k = topK;
+        if (fields) options.fields = fields;
+        if (rerank !== undefined) options.rerank = rerank;
+        if (keywordSearch !== undefined) options.keyword_search = keywordSearch;
+        if (filterMemories !== undefined) options.filter_memories = filterMemories;
 
         // API call
         const results = await this.cloudClient.search(query, options);
@@ -526,7 +649,7 @@ class Mem0MCPServer {
    * Handles deleting a memory using either local or cloud client.
    */
   private async handleDeleteMemory(args: Mem0DeleteToolArgs): Promise<any> {
-    const { memoryId, userId, agentId } = args;
+    const { memoryId, userId, agentId, orgId, projectId } = args;
 
     if (!memoryId) {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: memoryId");
@@ -540,9 +663,9 @@ class Mem0MCPServer {
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get organization and project IDs
-        const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
-        const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        // Get organization and project IDs - parameter takes precedence over environment
+        const finalOrgId = orgId || process.env.YOUR_ORG_ID || process.env.ORG_ID;
+        const finalProjectId = projectId || process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
 
         // Cloud API options - using snake_case
         const options: any = {
@@ -552,8 +675,8 @@ class Mem0MCPServer {
         };
 
         // Add organization and project IDs if available
-        if (orgId) options.org_id = orgId;
-        if (projectId) options.project_id = projectId;
+        if (finalOrgId) options.org_id = finalOrgId;
+        if (finalProjectId) options.project_id = finalProjectId;
 
         if (agentId) options.agent_id = agentId;
 

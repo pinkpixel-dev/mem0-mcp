@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2025-05-23
+
+### Added
+- ✨ Added support for `orgId` and `projectId` as parameters in all tools (add_memory, search_memory, delete_memory)
+- 🚀 Added comprehensive support for advanced Mem0 API parameters:
+  - **add_memory**: `includes`, `excludes`, `infer`, `outputFormat`, `customCategories`, `customInstructions`, `immutable`, `expirationDate`
+  - **search_memory**: `topK`, `fields`, `rerank`, `keywordSearch`, `filterMemories`
+- 📊 Parameter-provided `orgId` and `projectId` now take precedence over environment variables for better user control
+- 🔧 Enhanced configuration generator with `ORG_ID` and `PROJECT_ID` prompts for easier setup
+- 🌟 Added global installation support with `mem0-mcp` command
+- 📚 Added comprehensive installation documentation with three methods: global install, npx, and local build
+- 🎯 Enhanced configuration generator with global install option
+- 📋 Updated all README configuration examples to show complete environment variables
+
+### Changed
+- 🔧 Updated TypeScript interfaces to include all new parameters
+- 📝 Enhanced tool schemas with detailed descriptions for all new parameters
+- 🏗️ Improved parameter handling logic with proper fallbacks
+
+### Removed
+- 🧹 Removed unused `tiktoken-node` dependency to clean up the project
+
+## ## [0.3.3] - 2025-04-22
+
+### Fixed
+- ✅ Resolved version mismatch between package.json and source code (now both 0.3.3)
+- 🔧 Fixed configuration generator indentation issues and removed unused session ID environment variables
+- 📝 Clarified that session IDs are tool parameters, not environment variables
+
 ## [0.3.2] - 2025-04-20
 
 ### Fixed
