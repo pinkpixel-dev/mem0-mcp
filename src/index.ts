@@ -69,10 +69,9 @@ let MemoryClient: any = null;
 interface Mem0AddToolArgs {
   content: string;
   userId: string;
-  sessionId?: string;
-  agentId?: string;
-  orgId?: string;
-  projectId?: string;
+  sessionId?: string;  // This maps to run_id in Mem0 API
+  agentId?: string;    // The LLM/agent making the tool call
+  appId?: string;      // The user's project (this is what controls project scope!)
   metadata?: any;
   // Advanced Mem0 API parameters
   includes?: string;
@@ -88,10 +87,9 @@ interface Mem0AddToolArgs {
 interface Mem0SearchToolArgs {
   query: string;
   userId: string;
-  sessionId?: string;
-  agentId?: string;
-  orgId?: string;
-  projectId?: string;
+  sessionId?: string;  // This maps to run_id in Mem0 API
+  agentId?: string;    // The LLM/agent making the tool call
+  appId?: string;      // The user's project (this is what controls project scope!)
   filters?: any;
   threshold?: number;
   // Advanced Mem0 API search parameters
@@ -105,9 +103,8 @@ interface Mem0SearchToolArgs {
 interface Mem0DeleteToolArgs {
   memoryId: string;
   userId: string;
-  agentId?: string;
-  orgId?: string;
-  projectId?: string;
+  agentId?: string;    // The LLM/agent making the tool call
+  appId?: string;      // The user's project (this is what controls project scope!)
 }
 
 // Message type for Mem0 API
@@ -137,7 +134,7 @@ class Mem0MCPServer {
       {
         // These should match package.json
         name: "@pinkpixel/mem0-mcp",
-        version: "0.3.5",
+        version: "0.5.4",
       },
       {
         capabilities: {
@@ -158,11 +155,12 @@ class Mem0MCPServer {
       import('mem0ai').then(module => {
         try {
           MemoryClient = module.default;
-          // Get organization and project IDs
-          const orgId = process.env.YOUR_ORG_ID || process.env.ORG_ID;
-          const projectId = process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+          // Get default app_id and agent_id for fallbacks
+          const defaultAppId = process.env.DEFAULT_APP_ID;
+          const defaultAgentId = process.env.DEFAULT_AGENT_ID;
 
-          // Initialize with all available options
+          // Initialize with basic options ONLY - DO NOT set org/project IDs at client level
+          // as they would override per-request parameters
           const clientOptions: any = {
             apiKey: mem0ApiKey,
             // Disable debug logs in the client if possible
@@ -171,15 +169,15 @@ class Mem0MCPServer {
             silent: true
           };
 
-          // Add org and project IDs if available
-          if (orgId) clientOptions.org_id = orgId;
-          if (projectId) clientOptions.project_id = projectId;
+          // NOTE: We intentionally do NOT set organizationId/projectId at client level
+          // because client-level settings override per-request parameters, preventing
+          // environment variable fallbacks and tool parameter overrides from working
 
           this.cloudClient = new MemoryClient(clientOptions);
           console.error("Cloud client initialized successfully with options:", {
             hasApiKey: !!mem0ApiKey,
-            hasOrgId: !!orgId,
-            hasProjectId: !!projectId
+            hasDefaultAppId: !!defaultAppId,
+            hasDefaultAgentId: !!defaultAgentId
           });
           this.isReady = true;
         } catch (error) {
@@ -261,7 +259,7 @@ class Mem0MCPServer {
                 },
                 userId: {
                   type: "string",
-                  description: "User ID to associate with the memory.",
+                  description: "User ID to associate with the memory. If not provided, uses DEFAULT_USER_ID environment variable.",
                 },
                 sessionId: {
                   type: "string",
@@ -269,15 +267,11 @@ class Mem0MCPServer {
                 },
                 agentId: {
                   type: "string",
-                  description: "Optional agent ID to associate with the memory (for cloud API).",
+                  description: "Optional agent ID - identifies the LLM/agent making the tool call. If not provided, uses DEFAULT_AGENT_ID environment variable.",
                 },
-                orgId: {
+                appId: {
                   type: "string",
-                  description: "Optional organization ID for the memory (for cloud API).",
-                },
-                projectId: {
-                  type: "string",
-                  description: "Optional project ID for the memory (for cloud API).",
+                  description: "Optional app ID - identifies the user's project/application. If not provided, uses DEFAULT_APP_ID environment variable.",
                 },
                 metadata: {
                   type: "object",
@@ -316,7 +310,7 @@ class Mem0MCPServer {
                   description: "Optional when the memory will expire (format: YYYY-MM-DD, for cloud API).",
                 },
               },
-              required: ["content", "userId"],
+              required: ["content"],
             },
           },
           {
@@ -331,7 +325,7 @@ class Mem0MCPServer {
                 },
                 userId: {
                   type: "string",
-                  description: "User ID to filter search.",
+                  description: "User ID to filter search. If not provided, uses DEFAULT_USER_ID environment variable.",
                 },
                 sessionId: {
                   type: "string",
@@ -339,15 +333,11 @@ class Mem0MCPServer {
                 },
                 agentId: {
                   type: "string",
-                  description: "Optional agent ID to filter search (for cloud API).",
+                  description: "Optional agent ID - identifies the LLM/agent making the tool call. If not provided, uses DEFAULT_AGENT_ID environment variable.",
                 },
-                orgId: {
+                appId: {
                   type: "string",
-                  description: "Optional organization ID to filter search (for cloud API).",
-                },
-                projectId: {
-                  type: "string",
-                  description: "Optional project ID to filter search (for cloud API).",
+                  description: "Optional app ID - identifies the user's project/application. If not provided, uses DEFAULT_APP_ID environment variable.",
                 },
                 filters: {
                   type: "object",
@@ -379,7 +369,7 @@ class Mem0MCPServer {
                   description: "Optional whether to filter the memories (default: false, for cloud API).",
                 },
               },
-              required: ["query", "userId"],
+              required: ["query"],
             },
           },
           {
@@ -394,22 +384,18 @@ class Mem0MCPServer {
                 },
                 userId: {
                   type: "string",
-                  description: "User ID associated with the memory.",
+                  description: "User ID associated with the memory. If not provided, uses DEFAULT_USER_ID environment variable.",
                 },
                 agentId: {
                   type: "string",
-                  description: "Optional agent ID associated with the memory (for cloud API).",
+                  description: "Optional agent ID - identifies the LLM/agent making the tool call. If not provided, uses DEFAULT_AGENT_ID environment variable.",
                 },
-                orgId: {
+                appId: {
                   type: "string",
-                  description: "Optional organization ID associated with the memory (for cloud API).",
-                },
-                projectId: {
-                  type: "string",
-                  description: "Optional project ID associated with the memory (for cloud API).",
+                  description: "Optional app ID - identifies the user's project/application. If not provided, uses DEFAULT_APP_ID environment variable.",
                 },
               },
-              required: ["memoryId", "userId"],
+              required: ["memoryId"],
             },
           },
         ],
@@ -454,7 +440,7 @@ class Mem0MCPServer {
    */
   private async handleAddMemory(args: Mem0AddToolArgs): Promise<any> {
     const {
-      content, userId, sessionId, agentId, orgId, projectId, metadata,
+      content, userId, sessionId, agentId, appId, metadata,
       includes, excludes, infer, outputFormat, customCategories,
       customInstructions, immutable, expirationDate
     } = args;
@@ -463,17 +449,23 @@ class Mem0MCPServer {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: content");
     }
 
-    if (!userId) {
-      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId");
+    // Use DEFAULT_USER_ID as fallback if userId is not provided
+    const finalUserId = userId || process.env.DEFAULT_USER_ID;
+    if (!finalUserId) {
+      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId (and no DEFAULT_USER_ID environment variable set)");
     }
 
-    console.error(`Adding memory for user ${userId}`);
+    console.error(`Adding memory for user ${finalUserId}`);
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get organization and project IDs - parameter takes precedence over environment
-        const finalOrgId = orgId || process.env.YOUR_ORG_ID || process.env.ORG_ID;
-        const finalProjectId = projectId || process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        // Get app_id and agent_id - parameter takes precedence over environment
+        const finalAppId = appId || process.env.DEFAULT_APP_ID;
+        const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
+
+        console.error(`Parameter resolution: agentId=${agentId}, appId=${appId}`);
+        console.error(`Environment variables: DEFAULT_AGENT_ID=${process.env.DEFAULT_AGENT_ID}, DEFAULT_APP_ID=${process.env.DEFAULT_APP_ID}`);
+        console.error(`Final values: finalAgentId=${finalAgentId}, finalAppId=${finalAppId}`);
 
         // Format message for the cloud API
         const messages: Mem0Message[] = [{
@@ -481,21 +473,24 @@ class Mem0MCPServer {
           content
         }];
 
-        // Cloud API options - using snake_case
+        // Cloud API options - using snake_case for API parameters
+        // Note: Mem0 docs recommend version="v2" for add operations (v1 is deprecated)
         const options: any = {
-          user_id: userId,
+          user_id: finalUserId,
           version: "v2"
         };
 
-        // Add organization and project IDs if available
-        if (finalOrgId) options.org_id = finalOrgId;
-        if (finalProjectId) options.project_id = finalProjectId;
+        // Add app_id and agent_id if available (using snake_case)
+        if (finalAppId) options.app_id = finalAppId;
+        if (finalAgentId) options.agent_id = finalAgentId;
 
+        // Map sessionId to run_id (using snake_case)
         if (sessionId) options.run_id = sessionId;
-        if (agentId) options.agent_id = agentId;
         if (metadata) options.metadata = metadata;
 
-        // Add advanced Mem0 API parameters
+        console.error(`API call options:`, JSON.stringify(options, null, 2));
+
+        // Add advanced Mem0 API parameters (using snake_case)
         if (includes) options.includes = includes;
         if (excludes) options.excludes = excludes;
         if (infer !== undefined) options.infer = infer;
@@ -505,12 +500,58 @@ class Mem0MCPServer {
         if (immutable !== undefined) options.immutable = immutable;
         if (expirationDate) options.expiration_date = expirationDate;
 
-        // API call
-        const result = await this.cloudClient.add(messages, options);
-        console.error("Memory added successfully using cloud API");
+        // API call - try direct REST API approach first for better parameter support
+        let result;
+        let usedDirectAPI = false;
+
+        // Always try direct REST API first when app_id or run_id are provided
+        if (finalAppId || sessionId) {
+          console.error("Using direct REST API due to app_id or run_id parameters");
+          try {
+            const apiUrl = 'https://api.mem0.ai/v1/memories/';
+            const requestBody = {
+              messages: messages,
+              ...options
+            };
+
+            console.error("Making direct API call with body:", JSON.stringify(requestBody, null, 2));
+
+            const response = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Token ${process.env.MEM0_API_KEY}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`Direct API call failed: ${response.status} ${response.statusText} - ${errorText}`);
+            }
+
+            result = await response.json();
+            usedDirectAPI = true;
+            console.error("Memory added successfully using direct REST API");
+          } catch (directError: any) {
+            console.error("Direct API call failed, falling back to SDK:", directError.message);
+            // Fall through to SDK attempt
+          }
+        }
+
+        // Try SDK if direct API wasn't used or failed
+        if (!usedDirectAPI) {
+          try {
+            result = await this.cloudClient.add(messages, options);
+            console.error("Memory added successfully using cloud API SDK");
+          } catch (sdkError: any) {
+            console.error("SDK method failed:", sdkError.message);
+            throw sdkError;
+          }
+        }
 
         return {
-          content: [{ type: "text", text: `Memory added successfully` }],
+          content: [{ type: "text", text: `Memory added successfully. Result: ${JSON.stringify(result)}` }],
         };
       } catch (error: any) {
         console.error("Error adding memory using cloud API:", error);
@@ -526,7 +567,7 @@ class Mem0MCPServer {
 
         // Local storage options - using camelCase
         const options: any = {
-          userId,
+          userId: finalUserId,
           sessionId,
           metadata
         };
@@ -537,7 +578,7 @@ class Mem0MCPServer {
         console.error("Memory added successfully using local storage");
 
         return {
-          content: [{ type: "text", text: `Memory added successfully` }],
+          content: [{ type: "text", text: `Memory added successfully. Result: ${JSON.stringify(result)}` }],
         };
       } catch (error: any) {
         console.error("Error adding memory using local storage:", error);
@@ -553,7 +594,7 @@ class Mem0MCPServer {
    */
   private async handleSearchMemory(args: Mem0SearchToolArgs): Promise<any> {
     const {
-      query, userId, sessionId, agentId, orgId, projectId, filters, threshold,
+      query, userId, sessionId, agentId, appId, filters, threshold,
       topK, fields, rerank, keywordSearch, filterMemories
     } = args;
 
@@ -561,31 +602,33 @@ class Mem0MCPServer {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: query");
     }
 
-    if (!userId) {
-      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId");
+    // Use DEFAULT_USER_ID as fallback if userId is not provided
+    const finalUserId = userId || process.env.DEFAULT_USER_ID;
+    if (!finalUserId) {
+      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId (and no DEFAULT_USER_ID environment variable set)");
     }
 
-    console.error(`Searching memories for query "${query}" and user ${userId}`);
+    console.error(`Searching memories for query "${query}" and user ${finalUserId}`);
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get organization and project IDs - parameter takes precedence over environment
-        const finalOrgId = orgId || process.env.YOUR_ORG_ID || process.env.ORG_ID;
-        const finalProjectId = projectId || process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        // Get app_id and agent_id - parameter takes precedence over environment
+        const finalAppId = appId || process.env.DEFAULT_APP_ID;
+        const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
 
-        // Cloud API options
+        // Cloud API options - using snake_case for API parameters
+        // Note: Mem0 docs recommend version="v2" for add operations (v1 is deprecated)
         const options: any = {
-          user_id: userId,
+          user_id: finalUserId,
           version: "v2"
         };
 
-        // Add organization and project IDs if available
-        if (finalOrgId) options.org_id = finalOrgId;
-        if (finalProjectId) options.project_id = finalProjectId;
+        // Add app_id and agent_id if available (using snake_case)
+        if (finalAppId) options.app_id = finalAppId;
+        if (finalAgentId) options.agent_id = finalAgentId;
 
-        // Map sessionId to run_id for Mem0 API compatibility
+        // Map sessionId to run_id and other parameters (using snake_case)
         if (sessionId) options.run_id = sessionId;
-        if (agentId) options.agent_id = agentId;
         if (filters) options.filters = filters;
 
         // Only add threshold if it's a valid number (not null or undefined)
@@ -596,15 +639,62 @@ class Mem0MCPServer {
           options.threshold = 0.3;
         }
 
-        // Add advanced search parameters
+        // Add advanced search parameters (using snake_case)
         if (topK !== undefined) options.top_k = topK;
         if (fields) options.fields = fields;
         if (rerank !== undefined) options.rerank = rerank;
         if (keywordSearch !== undefined) options.keyword_search = keywordSearch;
         if (filterMemories !== undefined) options.filter_memories = filterMemories;
 
-        // API call
-        const results = await this.cloudClient.search(query, options);
+        // API call - try direct REST API approach first for better parameter support
+        let results;
+        let usedDirectAPI = false;
+
+        // Always try direct REST API first when app_id or run_id are provided
+        if (finalAppId || sessionId) {
+          console.error("Using direct REST API for search due to app_id or run_id parameters");
+          try {
+            const apiUrl = 'https://api.mem0.ai/v1/memories/search/';
+            const requestBody = {
+              query: query,
+              ...options
+            };
+
+            console.error("Making direct search API call with body:", JSON.stringify(requestBody, null, 2));
+
+            const response = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Token ${process.env.MEM0_API_KEY}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`Direct search API call failed: ${response.status} ${response.statusText} - ${errorText}`);
+            }
+
+            results = await response.json();
+            usedDirectAPI = true;
+            console.error("Search completed successfully using direct REST API");
+          } catch (directError: any) {
+            console.error("Direct search API call failed, falling back to SDK:", directError.message);
+            // Fall through to SDK attempt
+          }
+        }
+
+        // Try SDK if direct API wasn't used or failed
+        if (!usedDirectAPI) {
+          try {
+            results = await this.cloudClient.search(query, options);
+            console.error("Search completed successfully using cloud API SDK");
+          } catch (sdkError: any) {
+            console.error("SDK search method failed:", sdkError.message);
+            throw sdkError;
+          }
+        }
 
         // Handle potential array or object result
         const resultsArray = Array.isArray(results) ? results : [results];
@@ -621,7 +711,7 @@ class Mem0MCPServer {
       try {
         // Local storage options
         const options: any = {
-          userId,
+          userId: finalUserId,
           sessionId,
           filters
         };
@@ -649,36 +739,36 @@ class Mem0MCPServer {
    * Handles deleting a memory using either local or cloud client.
    */
   private async handleDeleteMemory(args: Mem0DeleteToolArgs): Promise<any> {
-    const { memoryId, userId, agentId, orgId, projectId } = args;
+    const { memoryId, userId, agentId, appId } = args;
 
     if (!memoryId) {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: memoryId");
     }
 
-    if (!userId) {
-      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId");
+    // Use DEFAULT_USER_ID as fallback if userId is not provided
+    const finalUserId = userId || process.env.DEFAULT_USER_ID;
+    if (!finalUserId) {
+      throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId (and no DEFAULT_USER_ID environment variable set)");
     }
 
-    console.error(`Attempting to delete memory with ID ${memoryId} for user ${userId}`);
+    console.error(`Attempting to delete memory with ID ${memoryId} for user ${finalUserId}`);
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get organization and project IDs - parameter takes precedence over environment
-        const finalOrgId = orgId || process.env.YOUR_ORG_ID || process.env.ORG_ID;
-        const finalProjectId = projectId || process.env.YOUR_PROJECT_ID || process.env.PROJECT_ID;
+        // Get app_id and agent_id - parameter takes precedence over environment
+        const finalAppId = appId || process.env.DEFAULT_APP_ID;
+        const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
 
-        // Cloud API options - using snake_case
+        // Cloud API options - using snake_case for API parameters
+        // Note: Delete memory uses v1 API, no version parameter needed
         const options: any = {
           memory_id: memoryId,
-          user_id: userId,
-          version: "v2"
+          user_id: finalUserId
         };
 
-        // Add organization and project IDs if available
-        if (finalOrgId) options.org_id = finalOrgId;
-        if (finalProjectId) options.project_id = finalProjectId;
-
-        if (agentId) options.agent_id = agentId;
+        // Add app_id and agent_id if available (using snake_case)
+        if (finalAppId) options.app_id = finalAppId;
+        if (finalAgentId) options.agent_id = finalAgentId;
 
         // Try to use the API's deleteMemory method through the client
         try {
@@ -688,7 +778,7 @@ class Mem0MCPServer {
         } catch (innerError) {
           // If that fails, try to use a generic request method
           console.error("Using fallback delete method for cloud API");
-          await fetch(`https://api.mem0.ai/v2/memories/${memoryId}`, {
+          await fetch(`https://api.mem0.ai/v1/memories/${memoryId}/`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Token ${process.env.MEM0_API_KEY}`,

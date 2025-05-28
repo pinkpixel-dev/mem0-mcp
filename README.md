@@ -20,17 +20,17 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
 ### Tools
 *   **`add_memory`**: Stores a piece of text content as a memory associated with a specific `userId`.
     *   **Required:** `content` (string), `userId` (string)
-    *   **Optional:** `sessionId` (string), `agentId` (string), `orgId` (string), `projectId` (string), `metadata` (object)
+    *   **Optional:** `sessionId` (string), `agentId` (string), `appId` (string), `metadata` (object)
     *   **Advanced (Cloud API):** `includes` (string), `excludes` (string), `infer` (boolean), `outputFormat` (string), `customCategories` (object), `customInstructions` (string), `immutable` (boolean), `expirationDate` (string)
     *   Stores the provided text, enabling recall in future interactions.
 *   **`search_memory`**: Searches stored memories based on a natural language query for a specific `userId`.
     *   **Required:** `query` (string), `userId` (string)
-    *   **Optional:** `sessionId` (string), `agentId` (string), `orgId` (string), `projectId` (string), `filters` (object), `threshold` (number)
+    *   **Optional:** `sessionId` (string), `agentId` (string), `appId` (string), `filters` (object), `threshold` (number)
     *   **Advanced (Cloud API):** `topK` (number), `fields` (array), `rerank` (boolean), `keywordSearch` (boolean), `filterMemories` (boolean)
     *   Retrieves relevant memories based on semantic similarity.
 *   **`delete_memory`**: Deletes a specific memory from storage by its ID.
     *   **Required:** `memoryId` (string), `userId` (string)
-    *   **Optional:** `agentId` (string), `orgId` (string), `projectId` (string)
+    *   **Optional:** `agentId` (string), `appId` (string)
     *   Permanently removes the specified memory.
 
 ## Prerequisites 🔑
@@ -78,8 +78,8 @@ Configure your MCP client to use the global command:
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
         "DEFAULT_USER_ID": "user123",
-        "ORG_ID": "your-org-id",
-        "PROJECT_ID": "your-project-id"
+        "DEFAULT_AGENT_ID": "your-agent-id",
+        "DEFAULT_APP_ID": "your-app-id"
       },
       "disabled": false,
       "alwaysAllow": [
@@ -133,8 +133,8 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
         "DEFAULT_USER_ID": "user123",
-        "ORG_ID": "your-org-id",
-        "PROJECT_ID": "your-project-id"
+        "DEFAULT_AGENT_ID": "your-agent-id",
+        "DEFAULT_APP_ID": "your-app-id"
       },
       "disabled": false,
       "alwaysAllow": [
@@ -201,8 +201,8 @@ Then, configure your MCP client to run the built script directly using `node`:
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
         "DEFAULT_USER_ID": "user123",
-        "ORG_ID": "your-org-id",
-        "PROJECT_ID": "your-project-id"
+        "DEFAULT_AGENT_ID": "your-agent-id",
+        "DEFAULT_APP_ID": "your-app-id"
       },
       "disabled": false,
       "alwaysAllow": [
@@ -245,13 +245,81 @@ Then, configure your MCP client to run the built script directly using `node`:
 2. Use the `build/index.js` file, not the `src/index.ts` file
 3. The MCP server requires clean stdout for protocol communication - any libraries or code that writes to stdout may interfere with the protocol
 
-### Default User ID (Optional Fallback)
+## Parameter Configuration 🎯
 
-Both the `add_memory` and `search_memory` tools require a `userId` argument to associate memories with a specific user.
+### Understanding Mem0 Parameters
 
-For convenience during testing or in single-user scenarios, you can optionally set the `DEFAULT_USER_ID` environment variable when launching the server. If this variable is set, and the `userId` argument is *omitted* when calling the `search_memory` tool, the server will use the value of `DEFAULT_USER_ID` for the search.
+The server uses four key parameters to organize and scope memories:
 
-**Note:** While this fallback exists, it's generally recommended that the calling agent (LLM) explicitly provides the correct `userId` for both adding and searching memories to avoid ambiguity.
+1. **`userId`** - Identifies the user (required)
+2. **`agentId`** - Identifies the LLM/agent making the tool call (optional)
+3. **`appId`** - Identifies the user's project/application - **this controls project scope!** (optional)
+4. **`sessionId`** - Identifies the conversation session (maps to `run_id` in Mem0) (optional)
+
+### Environment Variable Fallbacks 🔄
+
+The MCP server supports environment variable fallbacks for user identification and project settings:
+
+- `DEFAULT_USER_ID`: Fallback user ID when not provided in tool calls
+- `DEFAULT_AGENT_ID`: Fallback agent ID for identifying the LLM/agent
+- `DEFAULT_APP_ID`: Fallback app ID for project scoping
+
+#### **Priority Order (Important!)**
+1. **Tool Parameters** (highest priority) - Values provided by the LLM in tool calls
+2. **Environment Variables** (fallback) - Values from your MCP configuration
+
+#### **Example Behavior:**
+```json
+// Your MCP config
+"env": {
+  "DEFAULT_USER_ID": "john-doe",
+  "DEFAULT_AGENT_ID": "my-assistant",
+  "DEFAULT_APP_ID": "my-project"
+}
+```
+
+**If LLM provides parameters:**
+```json
+{
+  "tool": "add_memory",
+  "arguments": {
+    "content": "Remember this",
+    "userId": "session-123",        // ← Overrides DEFAULT_USER_ID
+    "agentId": "different-agent",   // ← Overrides DEFAULT_AGENT_ID
+    "appId": "special-project"      // ← Overrides DEFAULT_APP_ID
+    // sessionId omitted           // ← No fallback, will be undefined
+  }
+}
+```
+**Result**: Uses `session-123`, `different-agent`, and `special-project`
+
+**If LLM omits parameters:**
+```json
+{
+  "tool": "add_memory",
+  "arguments": {
+    "content": "Remember this"
+    // All IDs omitted - uses environment variables
+  }
+}
+```
+**Result**: Uses `john-doe`, `my-assistant`, and `my-project`
+
+#### **Controlling LLM Behavior**
+To ensure your environment variables are used, instruct your LLM:
+- *"Use the default user ID configured in the environment"*
+- *"Don't specify userId, agentId, or appId parameters"*
+- *"Let the server use the configured defaults"*
+
+#### **System Prompt Recommendation**
+For best results, include instructions in your system prompt like:
+
+```
+When creating memories, use:
+- agentId: "my-assistant"
+- appId: "my-project"
+- sessionId: "current-conversation-id"
+```
 
 Example configuration using `DEFAULT_USER_ID`:
 
@@ -466,12 +534,13 @@ The server recognizes several environment variables that control its behavior:
 - `MEM0_API_KEY`: API key for cloud storage mode
 - `OPENAI_API_KEY`: API key for local storage mode (embeddings)
 - `DEFAULT_USER_ID`: Default user ID for memory operations
-- `ORG_ID` / `YOUR_ORG_ID`: Default organization ID for cloud storage mode
-- `PROJECT_ID` / `YOUR_PROJECT_ID`: Default project ID for cloud storage mode
+- `DEFAULT_AGENT_ID`: Default agent ID for identifying the LLM/agent
+- `DEFAULT_APP_ID`: Default app ID for project scoping
 
 **Important Notes:**
 - **Session IDs** are passed as tool parameters (e.g., `"sessionId": "my-session"`), not environment variables
-- When using the tools, parameters provided directly (e.g., `orgId`, `projectId`, `sessionId`) take precedence over environment variables, giving you maximum flexibility
+- When using the tools, parameters provided directly (e.g., `agentId`, `appId`, `sessionId`) take precedence over environment variables, giving you maximum flexibility
+- **org_id and project_id are set automatically by Mem0** and cannot be changed by users - use `appId` for project scoping instead
 
 ---
 

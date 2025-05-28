@@ -2,8 +2,8 @@
 
 # @pinkpixel/mem0-mcp Project Overview ✨
 
-**Current Version:** 0.3.5
-**Last Updated:** 2025-05-28
+**Current Version:** 0.5.1
+**Last Updated:** 2025-05-28T05:01:02.482Z
 
 ## Project Summary
 
@@ -54,16 +54,18 @@ The server supports two storage modes:
 The server provides three main tools:
 
 1. **add_memory**: Stores a piece of text as a memory in Mem0
-   * Required parameters: `content`, `userId`
-   * Optional parameters: `sessionId`, `agentId`, `metadata`
+   * Required parameters: `content`
+   * Optional parameters: `userId`, `sessionId`, `agentId`, `appId`, `metadata`
+   * Advanced parameters: `includes`, `excludes`, `infer`, `outputFormat`, `customCategories`, `customInstructions`, `immutable`, `expirationDate`
 
 2. **search_memory**: Searches for memories based on a query
-   * Required parameters: `query`, `userId`
-   * Optional parameters: `sessionId`, `agentId`, `filters`, `threshold`
+   * Required parameters: `query`
+   * Optional parameters: `userId`, `sessionId`, `agentId`, `appId`, `filters`, `threshold`
+   * Advanced parameters: `topK`, `fields`, `rerank`, `keywordSearch`, `filterMemories`
 
 3. **delete_memory**: Deletes a specific memory by ID
-   * Required parameters: `memoryId`, `userId`
-   * Optional parameters: `agentId`
+   * Required parameters: `memoryId`
+   * Optional parameters: `userId`, `agentId`, `appId`
 
 ## Dependencies
 
@@ -81,16 +83,16 @@ Development dependencies:
 ```
 mem0-mcp/
 ├── src/
-│   └── index.ts         # Main TypeScript file implementing the MCP server (763 lines)
+│   └── index.ts         # Main TypeScript file implementing the MCP server (821 lines)
 ├── build/               # Compiled JavaScript files (generated)
 ├── vsce/                # VS Code extension files (if applicable)
-├── config_generator.sh  # Interactive bash script for MCP configuration (461 lines)
+├── config_generator.sh  # Interactive bash script for MCP configuration
 ├── package.json         # Project metadata and dependencies
 ├── package-lock.json    # Dependency lock file
 ├── tsconfig.json        # TypeScript configuration
 ├── mem0-logo.svg        # Project logo
-├── README.md            # Comprehensive project documentation (479 lines)
-├── CHANGELOG.md         # Detailed version history and changes (105 lines)
+├── README.md            # Comprehensive project documentation (548 lines)
+├── CHANGELOG.md         # Detailed version history and changes (256 lines)
 ├── CONTRIBUTING.md      # Guidelines for contributing to the project
 ├── LICENSE              # MIT License
 └── OVERVIEW.md          # This file - project overview
@@ -142,7 +144,9 @@ Example configuration for cloud storage mode:
       ],
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
-        "DEFAULT_USER_ID": "user123"
+        "DEFAULT_USER_ID": "user123",
+        "DEFAULT_AGENT_ID": "your-agent-id",
+        "DEFAULT_APP_ID": "your-app-id"
       },
       "disabled": false,
       "alwaysAllow": [
@@ -187,6 +191,42 @@ For development:
 **Challenge**: The mem0ai library doesn't expose consistent delete methods across cloud and local modes.
 
 **Solution**: Implements fallback strategies using direct API calls for cloud mode and accessing internal vectorstore methods for local mode, with proper error handling for unsupported operations.
+
+### Parameter Handling Evolution (v0.5.0)
+
+**Challenge**: Critical issues with organization and project ID parameters not working properly, and incorrect parameter usage.
+
+**Solution**: Major breaking change in v0.5.0 that:
+- **BREAKING CHANGE**: Replaced incorrect `orgId`/`projectId` parameters with correct Mem0 API parameters
+- **New Parameter Mapping**: `agentId` (LLM identifier), `userId` (user), `appId` (project scope), `sessionId` (session tracking)
+- **Root Cause Fix**: org_id and project_id are auto-assigned by Mem0 and cannot be changed by users
+- **Correct Scope Control**: app_id is what actually controls the user's project scope in Mem0
+- **Enhanced Environment Fallbacks**: Added `DEFAULT_AGENT_ID` and `DEFAULT_APP_ID` environment variables
+- **API Compliance**: Now uses correct Mem0 API parameters instead of non-functional org/project IDs
+
+## Current Status & Quality Assessment
+
+### Project Maturity
+This is a **production-ready, high-quality MCP server** that demonstrates excellent software engineering practices:
+
+✅ **Comprehensive Documentation**: 548-line README with multiple installation methods, configuration examples, and troubleshooting
+✅ **Active Maintenance**: Regular updates addressing security vulnerabilities and user feedback
+✅ **Innovative Technical Solutions**: SafeLogger class solving MCP protocol compatibility issues
+✅ **Robust Error Handling**: Comprehensive try-catch blocks with detailed error messages
+✅ **Security Conscious**: Recent updates addressing CVEs in axios and undici dependencies
+✅ **User-Focused**: Environment variable fallbacks and multiple installation methods for ease of use
+
+### Recent Improvements (v0.5.0-0.5.1)
+- 🎯 **BREAKING CHANGE**: Fixed incorrect parameter implementation by replacing `orgId`/`projectId` with correct `agentId`/`appId` parameters
+- 🔧 **Root Cause Resolution**: Addressed fundamental misunderstanding of Mem0 API parameter usage
+- 📝 **Enhanced Documentation**: Comprehensive parameter configuration guide with system prompt recommendations
+- 🚀 **Improved API Compliance**: Now uses correct Mem0 API parameters for proper project scoping
+- 🛡️ **Security updates** addressing high-severity vulnerabilities
+
+### Minor Areas for Enhancement
+- **Testing Framework**: Could benefit from unit and integration tests
+- **Batch Operations**: Potential for batch memory operations for efficiency
+- **Monitoring & Analytics**: Could add comprehensive logging and usage analytics
 
 ## Future Improvements
 

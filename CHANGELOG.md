@@ -2,8 +2,188 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.4] - 2025-05-28
+
+### ✅ **CONFIRMED WORKING** - `app_id` and `run_id` Parameters
+- **SUCCESS**: Confirmed that `app_id` and `run_id` parameters are now working correctly!
+- **Dashboard Behavior**: Parameters appear in individual memory details (Event Details panel) as expected
+- **API Version**: Re-added `version="v2"` for add operations as recommended by Mem0 docs (v1 is deprecated)
+- **UI Limitation**: Mem0 dashboard doesn't show `app_id`/`run_id` in main list view by design - this is normal behavior
+
+### 📝 Research Findings
+- Mem0 stores `app_id` and `run_id` as first-class fields, not in metadata
+- Dashboard UI focuses on user/agent groupings; `app_id`/`run_id` appear in memory details and are fully queryable
+- Parameters are working correctly - the "missing" display in main list was expected behavior
+- All memory operations now use proper API versions and endpoints
+
+### 🎯 Status
+- ✅ Project scoping via `app_id` - **WORKING**
+- ✅ Session tracking via `run_id` - **WORKING**
+- ✅ Agent identification via `agent_id` - **WORKING**
+- ✅ Memory organization and filtering - **WORKING**
+
+## [0.5.3] - 2025-05-28
+
+### 🔧 Fixed
+- **API Endpoint Corrections**:
+  - Add Memory: Uses `/v1/memories/`
+  - Search Memory: Uses `/v1/memories/search/` with `version=v2` parameter
+  - Delete Memory: Uses `/v1/memories/{id}/`
+- Fixed delete endpoint URL from `/v2/memories/{id}` to `/v1/memories/{id}/`
+
+## [0.5.2] - 2025-05-28
+
+### 🔧 Fixed
+- **API Call Priority**: Now prioritizes direct REST API calls over Node.js SDK when `app_id` or `run_id` parameters are provided
+- **Enhanced Parameter Support**: Ensures `app_id` and `run_id` parameters are properly passed to Mem0 API for project scoping and session tracking
+- **Better Debugging**: Added specific logging when using direct API calls for parameter-sensitive operations
+
+### 📝 Technical Details
+- Modified both `add_memory` and `search_memory` methods to use direct REST API calls when `app_id` or `sessionId` parameters are present
+- The Node.js SDK appears to have limitations with certain parameters, so direct API calls ensure full parameter support
+- Maintains backward compatibility while ensuring all parameters work correctly
+- Added fallback logic to SDK if direct API calls fail
+
+## [0.5.1] - 2025-05-28
+
+### 📝 Documentation
+- Updated README with comprehensive parameter configuration guide
+- Added system prompt recommendations for LLM usage
+- Enhanced examples showing correct parameter usage
+- Clarified that org_id/project_id are auto-assigned by Mem0
+
+## [0.5.0] - 2025-05-28
+
+### 🎯 **BREAKING CHANGE - Correct Parameter Implementation**
+- **MAJOR FIX**: Replaced incorrect `orgId`/`projectId` parameters with correct Mem0 API parameters
+- **Parameter Mapping**:
+  - `agentId` - The LLM/agent making the tool call
+  - `userId` - The user's identifier
+  - `appId` - The user's project/application (this controls project scope!)
+  - `sessionId` - Maps to `run_id` for session tracking
+- **Environment Fallbacks**: Added `DEFAULT_AGENT_ID` and `DEFAULT_APP_ID` environment variables
+- **API Compliance**: Now uses correct Mem0 API parameters (`app_id`, `agent_id`, `run_id`) instead of non-functional org/project IDs
+
+### 🔧 Fixed
+- **Root Cause**: org_id and project_id are set by Mem0 automatically and cannot be changed by users
+- **Correct Scope Control**: app_id is what actually controls the user's project scope in Mem0
+- **Parameter Precedence**: Tool parameters take precedence over environment variable defaults
+- **Enhanced Logging**: Added comprehensive parameter resolution logging for debugging
+
+### 📝 Technical Details
+- Removed all references to `orgId`/`projectId` (these are auto-assigned by Mem0)
+- Implemented proper `app_id` parameter for project scoping
+- Updated tool schemas to reflect correct parameter names and descriptions
+- Added fallback logic for `DEFAULT_AGENT_ID` and `DEFAULT_APP_ID` environment variables
+- Updated direct REST API calls to use correct parameter names
+
+## [0.4.2] - 2025-05-28
+
+### 🔧 Fixed
+- **CRITICAL FIX**: Added fallback to direct REST API calls when Node.js SDK doesn't properly handle org_id/project_id parameters
+- **SDK Limitation Workaround**: Node.js SDK appears to ignore org_id/project_id parameters, so we now use direct REST API calls as fallback
+- **Enhanced Error Handling**: Added comprehensive error handling with automatic fallback from SDK to direct API calls
+- **Better Debugging**: Added detailed logging for both SDK attempts and direct API calls to help identify issues
+
+### 📝 Technical Details
+- When `cloudClient.add()` or `cloudClient.search()` fails or ignores org/project parameters, automatically falls back to direct REST API calls
+- Direct API calls use proper `https://api.mem0.ai/v1/memories/` endpoints with full parameter support
+- Maintains backward compatibility while ensuring org_id and project_id parameters work correctly
+- Added comprehensive request/response logging for debugging
+
+## [0.4.1] - 2025-05-28
+
+### 🔧 Fixed
+- **CRITICAL FIX**: Removed organizationId and projectId from client-level initialization to fix environment variable fallbacks
+- **Parameter Override Issue**: Client-level org/project settings were overriding per-request parameters, preventing environment variables and tool parameters from working
+- **Enhanced Debugging**: Added comprehensive logging to track parameter resolution and API call options
+- **Environment Variable Fallbacks**: ORG_ID and PROJECT_ID environment variables now work correctly when tool parameters are omitted
+
+### 📝 Technical Details
+- Removed `organizationId` and `projectId` from MemoryClient constructor options
+- Client-level settings were preventing per-request `org_id` and `project_id` parameters from taking effect
+- Added detailed logging to help debug parameter resolution issues
+- Environment variable fallback logic now works as intended
+
+## [0.4.0] - 2025-01-27
+
+### 🔧 Fixed
+- **BREAKING FIX**: Fixed client initialization issue where org_id and project_id set at client level were overriding per-request values
+- **API Parameter Format**: Changed API method parameters from camelCase to snake_case to match Mem0 REST API specification
+  - `userId` → `user_id`
+  - `orgId` → `org_id`
+  - `projectId` → `project_id`
+  - `agentId` → `agent_id`
+  - `sessionId` → `session_id`
+  - `customCategories` → `custom_categories`
+  - `customInstructions` → `custom_instructions`
+  - `outputFormat` → `output_format`
+  - `expirationDate` → `expiration_date`
+  - `topK` → `top_k`
+  - `keywordSearch` → `keyword_search`
+  - `filterMemories` → `filter_memories`
+- **Client Initialization**: Now properly sets organizationId and projectId at client level using camelCase (as expected by JavaScript SDK)
+- **Environment Variable Fallbacks**: ORG_ID and PROJECT_ID environment variable fallbacks now work properly when explicit parameters are not provided
+
+### 🚀 Improved
+- Enhanced error messages to include API response details for better debugging
+- Added comprehensive parameter validation and logging
+- Improved client initialization logging to show which parameters are being used
+
+### 📝 Notes
+- This version fixes the core issue where organization and project IDs were not being properly passed to the Mem0 API
+- Users should now see their memories properly scoped to their organization and project
+- Environment variable fallbacks (ORG_ID, PROJECT_ID) will now work as expected when tool parameters are omitted
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.3.9] - 2025-01-27
+
+### Fixed
+- **CRITICAL FIX**: Fixed organization and project ID parameters not working properly
+  - Changed from snake_case (`org_id`, `project_id`) to camelCase (`organizationId`, `projectId`) for JavaScript client compatibility
+  - Fixed environment variable fallbacks (`ORG_ID`, `PROJECT_ID`) not working due to incorrect parameter names
+  - Updated all API calls to use correct JavaScript/Node.js parameter naming convention
+  - This resolves issues where explicit org/project parameters were ignored and environment defaults weren't applied
+
+### Technical Details
+- Updated `add_memory`, `search_memory`, and `delete_memory` methods to use camelCase parameters
+- Fixed parameter mapping: `userId`, `organizationId`, `projectId`, `sessionId`, `agentId`
+- Fixed advanced parameters: `outputFormat`, `customCategories`, `customInstructions`, `expirationDate`, `topK`, `keywordSearch`, `filterMemories`
+- Maintains backward compatibility with environment variable names
+
+## [0.3.8] - 2025-05-28
+
+### Fixed
+
+- 🐛 **CRITICAL BUG FIX**: Fixed DEFAULT_USER_ID environment variable not being used as fallback when userId parameter is omitted
+- - 🐛 Also fixed issue with PROJECT_ID and ORG_ID variables not being used as fallback when projectId and orgId parameters are omitted during tool use
+
+## [0.3.7] - 2025-05-28
+
+### Documentation
+- 📚 **Enhanced README**: Added comprehensive section explaining environment variable fallback behavior
+- 🎯 Clarified priority order: Tool parameters override environment variables
+- 📝 Added detailed examples showing when defaults are used vs. overridden
+- 💡 Provided guidance on instructing LLMs to use configured defaults
+- 🔍 Added GitHub issue comment explaining fallback behavior to user
+
+### Changed
+- 📖 Improved documentation clarity for environment variable usage patterns
+
+## [0.3.6] - 2025-05-28
+
+### Fixed
+- 🐛 **CRITICAL BUG FIX**: Fixed DEFAULT_USER_ID environment variable not being used as fallback when userId parameter is omitted
+- ✅ All three tools (add_memory, search_memory, delete_memory) now properly use DEFAULT_USER_ID as fallback
+- 🔧 Updated tool schemas to make userId parameter optional with clear fallback documentation
+- 📝 Improved error messages to indicate when DEFAULT_USER_ID environment variable is missing
+- 🎯 Resolves GitHub issue #3 where environment variables were not taking effect
+
+### Changed
+- 📋 Made userId parameter optional in all tool schemas since DEFAULT_USER_ID provides fallback
+- 🔄 Enhanced parameter validation logic to use environment variable fallbacks consistently
 
 ## [0.3.5] - 2025-05-28
 

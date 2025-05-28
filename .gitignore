@@ -114,6 +114,7 @@ build/
 dist/
 
 # VSCode settings
+src/.vs
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -133,4 +134,3 @@ memory.db
 vector_store.db
 *.db
 mem0-docs/
-
