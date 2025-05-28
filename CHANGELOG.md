@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2025-05-28
+
+### Security
+- 🔒 **CRITICAL**: Fixed high severity security vulnerabilities in dependencies
+- 🛡️ Updated axios from 1.7.7 to 1.9.0 to address SSRF and credential leakage vulnerability (GHSA-jr5f-v2jv-69x6)
+- 🛡️ Updated undici from 5.28.5 to 7.10.0 to address denial of service vulnerability (GHSA-cxrh-j4jr-qwg3)
+- ⚙️ Added npm overrides in package.json to ensure secure dependency versions
+- ✅ All security vulnerabilities resolved - npm audit now shows 0 vulnerabilities
+
+### Changed
+- 📦 Added dependency overrides for axios and undici to maintain security compliance
+- 🔧 Enhanced package.json with security-focused dependency management
+
 ## [0.3.4] - 2025-05-23
 
 ### Added

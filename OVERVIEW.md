@@ -2,8 +2,8 @@
 
 # @pinkpixel/mem0-mcp Project Overview ✨
 
-**Current Version:** 0.3.3
-**Last Updated:** 2025-05-23
+**Current Version:** 0.3.5
+**Last Updated:** 2025-05-28
 
 ## Project Summary
 
@@ -69,28 +69,28 @@ The server provides three main tools:
 
 The project has the following key dependencies:
 
-- **@modelcontextprotocol/sdk (0.6.0)**: For implementing the MCP server
-- **mem0ai (^2.1.14)**: The Node.js SDK for Mem0.ai
+- **@modelcontextprotocol/sdk (1.12.0)**: For implementing the MCP server
+- **mem0ai (^2.1.27)**: The Node.js SDK for Mem0.ai
 
 Development dependencies:
-- **@types/node (^20.11.24)**: TypeScript type definitions for Node.js
-- **typescript (^5.3.3)**: For TypeScript compilation
+- **@types/node (^22.15.23)**: TypeScript type definitions for Node.js
+- **typescript (^5.8.3)**: For TypeScript compilation
 
 ## File Structure
 
 ```
 mem0-mcp/
 ├── src/
-│   └── index.ts         # Main TypeScript file implementing the MCP server (640 lines)
+│   └── index.ts         # Main TypeScript file implementing the MCP server (763 lines)
 ├── build/               # Compiled JavaScript files (generated)
 ├── vsce/                # VS Code extension files (if applicable)
-├── config_generator.sh  # Interactive bash script for MCP configuration (403 lines)
+├── config_generator.sh  # Interactive bash script for MCP configuration (461 lines)
 ├── package.json         # Project metadata and dependencies
 ├── package-lock.json    # Dependency lock file
 ├── tsconfig.json        # TypeScript configuration
 ├── mem0-logo.svg        # Project logo
-├── README.md            # Comprehensive project documentation (373 lines)
-├── CHANGELOG.md         # Detailed version history and changes (76 lines)
+├── README.md            # Comprehensive project documentation (479 lines)
+├── CHANGELOG.md         # Detailed version history and changes (105 lines)
 ├── CONTRIBUTING.md      # Guidelines for contributing to the project
 ├── LICENSE              # MIT License
 └── OVERVIEW.md          # This file - project overview

@@ -1,6 +1,6 @@
 {
   "name": "@pinkpixel/mem0-mcp",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "A Model Context Protocol server that can store and retrieve memories for LLM context control",
   "private": false,
   "type": "module",
@@ -18,11 +18,15 @@
     "inspector": "npx @modelcontextprotocol/inspector build/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "0.6.0",
-    "mem0ai": "^2.1.14"
+    "@modelcontextprotocol/sdk": "1.12.0",
+    "mem0ai": "^2.1.27"
   },
   "devDependencies": {
-    "@types/node": "^20.11.24",
+    "@types/node": "^22.15.23",
     "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "undici": "^7.10.0",
+    "axios": "^1.9.0"
   }
 }
