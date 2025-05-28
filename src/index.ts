@@ -134,7 +134,7 @@ class Mem0MCPServer {
       {
         // These should match package.json
         name: "@pinkpixel/mem0-mcp",
-        version: "0.5.4",
+        version: "0.5.5",
       },
       {
         capabilities: {

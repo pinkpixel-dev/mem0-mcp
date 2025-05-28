@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.5.4] - 2025-05-28
+## [0.5.5] - 2025-05-28
 
 ### ✅ **CONFIRMED WORKING** - `app_id` and `run_id` Parameters
 - **SUCCESS**: Confirmed that `app_id` and `run_id` parameters are now working correctly!
