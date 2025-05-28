@@ -35,14 +35,22 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
 
 ## Prerequisites 🔑
 
-This server supports two storage modes:
+This server supports three storage modes:
 
-1. **Cloud Storage Mode** ☁️ (Recommended)
+1. **Cloud Storage Mode** ☁️ (Recommended for production)
    * Requires a **Mem0 API key** (provided as `MEM0_API_KEY` environment variable)
    * Memories are persistently stored on Mem0's cloud servers
    * No local database needed
+   * Full feature support with advanced filtering and search
 
-2. **Local Storage Mode** 💾
+2. **Supabase Storage Mode** 🗄️ (Recommended for self-hosting)
+   * Requires **Supabase credentials** (`SUPABASE_URL` and `SUPABASE_KEY` environment variables)
+   * Requires **OpenAI API key** (`OPENAI_API_KEY` environment variable) for embeddings
+   * Memories are persistently stored in your Supabase database
+   * Free tier available, self-hostable option
+   * Requires initial database setup (SQL migrations provided below)
+
+3. **Local Storage Mode** 💾 (Development/testing only)
    * Requires an **OpenAI API key** (provided as `OPENAI_API_KEY` environment variable)
    * Memories are stored in an in-memory vector database (non-persistent by default)
    * Data is lost when the server restarts unless configured for persistent storage
@@ -77,6 +85,33 @@ Configure your MCP client to use the global command:
       "args": [],
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123",
+        "DEFAULT_AGENT_ID": "your-agent-id",
+        "DEFAULT_APP_ID": "your-app-id"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory",
+        "delete_memory"
+      ]
+    }
+  }
+}
+```
+
+#### Supabase Storage Configuration (Global Install)
+
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "mem0-mcp",
+      "args": [],
+      "env": {
+        "SUPABASE_URL": "YOUR_SUPABASE_PROJECT_URL",
+        "SUPABASE_KEY": "YOUR_SUPABASE_ANON_KEY",
+        "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "your-agent-id",
         "DEFAULT_APP_ID": "your-app-id"
@@ -132,6 +167,36 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
       ],
       "env": {
         "MEM0_API_KEY": "YOUR_MEM0_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123",
+        "DEFAULT_AGENT_ID": "your-agent-id",
+        "DEFAULT_APP_ID": "your-app-id"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory",
+        "delete_memory"
+      ]
+    }
+  }
+}
+```
+
+#### Supabase Storage Configuration (npx)
+
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@pinkpixel/mem0-mcp"
+      ],
+      "env": {
+        "SUPABASE_URL": "YOUR_SUPABASE_PROJECT_URL",
+        "SUPABASE_KEY": "YOUR_SUPABASE_ANON_KEY",
+        "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "your-agent-id",
         "DEFAULT_APP_ID": "your-app-id"
@@ -215,6 +280,35 @@ Then, configure your MCP client to run the built script directly using `node`:
 }
 ```
 
+#### Supabase Storage Configuration (Cloned Repository)
+
+```json
+{
+  "mcpServers": {
+    "mem0-mcp": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/mem0-mcp/build/index.js"
+      ],
+      "env": {
+        "SUPABASE_URL": "YOUR_SUPABASE_PROJECT_URL",
+        "SUPABASE_KEY": "YOUR_SUPABASE_ANON_KEY",
+        "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
+        "DEFAULT_USER_ID": "user123",
+        "DEFAULT_AGENT_ID": "your-agent-id",
+        "DEFAULT_APP_ID": "your-app-id"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory",
+        "delete_memory"
+      ]
+    }
+  }
+}
+```
+
 #### Local Storage Configuration (Cloned Repository)
 
 ```json
@@ -244,6 +338,91 @@ Then, configure your MCP client to run the built script directly using `node`:
 1. Replace `/absolute/path/to/mem0-mcp/` with the actual absolute path to your cloned repository
 2. Use the `build/index.js` file, not the `src/index.ts` file
 3. The MCP server requires clean stdout for protocol communication - any libraries or code that writes to stdout may interfere with the protocol
+
+## Supabase Setup 🗄️
+
+If you choose to use Supabase storage mode, you'll need to set up your Supabase database with the required table.
+
+### 1. Create a Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Note your project URL and anon key from the project settings
+
+### 2. Run SQL Migrations
+
+Run these SQL commands in your Supabase SQL Editor:
+
+```sql
+-- Enable the vector extension
+create extension if not exists vector;
+
+-- Create the memories table
+create table if not exists memories (
+  id text primary key,
+  embedding vector(1536),
+  metadata jsonb,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now())
+);
+
+-- Create the vector similarity search function
+create or replace function match_vectors(
+  query_embedding vector(1536),
+  match_count int,
+  filter jsonb default '{}'::jsonb
+)
+returns table (
+  id text,
+  similarity float,
+  metadata jsonb
+)
+language plpgsql
+as $$
+begin
+  return query
+  select
+    t.id::text,
+    1 - (t.embedding <=> query_embedding) as similarity,
+    t.metadata
+  from memories t
+  where case
+    when filter::text = '{}'::text then true
+    else t.metadata @> filter
+  end
+  order by t.embedding <=> query_embedding
+  limit match_count;
+end;
+$$;
+
+-- Create the memory_history table for history tracking
+create table if not exists memory_history (
+  id text primary key,
+  memory_id text not null,
+  previous_value text,
+  new_value text,
+  action text not null,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone,
+  is_deleted integer default 0
+);
+```
+
+### 3. Set Environment Variables
+
+Add these to your MCP configuration:
+
+- `SUPABASE_URL`: Your Supabase project URL (e.g., `https://your-project.supabase.co`)
+- `SUPABASE_KEY`: Your Supabase anon key
+- `OPENAI_API_KEY`: Your OpenAI API key (for embeddings)
+
+### Benefits of Supabase Mode
+
+✅ **Persistent Storage** - Data survives server restarts
+✅ **Free Tier Available** - Generous free tier for development
+✅ **Self-Hostable** - Can run your own Supabase instance
+✅ **Scalable** - Grows with your needs
+✅ **SQL Access** - Direct database access for advanced queries
+✅ **Real-time Features** - Built-in real-time subscriptions
 
 ## Parameter Configuration 🎯
 
@@ -369,20 +548,31 @@ npm run build
 }
 ```
 
-## Cloud vs. Local Storage 🔄
+## Storage Mode Comparison 🔄
 
-### Cloud Storage (Mem0 API)
+### Cloud Storage (Mem0 API) ☁️
 * **Persistent by default** - Your memories remain available across sessions and server restarts
 * **No local database required** - All data is stored on Mem0's servers
 * **Higher retrieval quality** - Uses Mem0's optimized search algorithms
 * **Additional fields** - Supports `agent_id` and `threshold` parameters
+* **Fully managed** - No setup or maintenance required
 * **Requires** - A Mem0 API key
 
-### Local Storage (OpenAI API)
+### Supabase Storage 🗄️
+* **Persistent storage** - Data is stored in your Supabase PostgreSQL database
+* **Free tier available** - Generous free tier for development and small projects
+* **Self-hostable** - Can run your own Supabase instance for complete control
+* **SQL access** - Direct database access for advanced queries and analytics
+* **Scalable** - Grows with your needs, from free tier to enterprise
+* **Vector search** - Uses pgvector extension for efficient similarity search
+* **Real-time features** - Built-in real-time subscriptions and webhooks
+* **Requires** - Supabase project setup and OpenAI API key for embeddings
+
+### Local Storage (OpenAI API) 💾
 * **In-memory by default** - Data is stored only in RAM and is **not persistent long-term**. While some caching may occur, you should not rely on this for permanent storage.
 * **Data loss risk** - Memory data will be lost on server restart, system reboot, or if the process is terminated
 * **Recommended for** - Development, testing, or temporary use only
-* **For persistent storage** - Use the Cloud Storage option with Mem0 API if you need reliable long-term memory
+* **For persistent storage** - Use the Cloud Storage or Supabase options if you need reliable long-term memory
 * **Uses OpenAI embeddings** - For vector search functionality
 * **Self-contained** - All data stays on your machine
 * **Requires** - An OpenAI API key

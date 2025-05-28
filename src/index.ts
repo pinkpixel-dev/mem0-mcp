@@ -116,8 +116,10 @@ type Mem0Message = {
 class Mem0MCPServer {
   private server: Server;
   private isCloudMode: boolean = false;
+  private isSupabaseMode: boolean = false;
   private localClient?: Memory;
   private cloudClient?: any;
+  private supabaseClient?: Memory;
   private isReady: boolean = false;
 
   constructor() {
@@ -125,6 +127,10 @@ class Mem0MCPServer {
 
     // Check for Mem0 API key first (for cloud mode)
     const mem0ApiKey = process.env.MEM0_API_KEY;
+
+    // Check for Supabase credentials (for Supabase mode)
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
 
     // Check for OpenAI API key (for local mode)
     const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -134,7 +140,7 @@ class Mem0MCPServer {
       {
         // These should match package.json
         name: "@pinkpixel/mem0-mcp",
-        version: "0.5.5",
+        version: "0.6.1",
       },
       {
         capabilities: {
@@ -146,7 +152,7 @@ class Mem0MCPServer {
 
     this.setupToolHandlers();
 
-    // Determine the mode based on available keys
+    // Determine the mode based on available keys (priority: Cloud > Supabase > Local)
     if (mem0ApiKey) {
       console.error("Using Mem0 cloud storage mode with MEM0_API_KEY");
       this.isCloudMode = true;
@@ -187,6 +193,49 @@ class Mem0MCPServer {
         console.error("Error initializing cloud client:", error);
         process.exit(1);
       });
+    } else if (supabaseUrl && supabaseKey) {
+      console.error("Using Supabase storage mode with SUPABASE_URL and SUPABASE_KEY");
+      this.isSupabaseMode = true;
+
+      try {
+        // Initialize Supabase client with vector store and history store
+        // Using exact configuration format from mem0 docs
+        const supabaseConfig = {
+          vectorStore: {
+            provider: "supabase",
+            config: {
+              collectionName: "memories",
+              embeddingModelDims: 1536,
+              supabaseUrl: supabaseUrl,
+              supabaseKey: supabaseKey,
+              tableName: "memories",
+            },
+          },
+          historyStore: {
+            provider: 'supabase',
+            config: {
+              supabaseUrl: supabaseUrl,
+              supabaseKey: supabaseKey,
+              tableName: 'memory_history',
+            },
+          },
+          // Embedder configuration for OpenAI
+          embedder: {
+            provider: 'openai',
+            config: {
+              apiKey: process.env.OPENAI_API_KEY,
+              model: 'text-embedding-3-small',
+            },
+          },
+        };
+
+        this.supabaseClient = new Memory(supabaseConfig);
+        console.error("Supabase client initialized successfully");
+        this.isReady = true;
+      } catch (error) {
+        console.error("Error initializing Supabase client:", error);
+        process.exit(1);
+      }
     } else if (openaiApiKey) {
       console.error("Using local in-memory storage mode with OPENAI_API_KEY");
       this.isCloudMode = false;
@@ -210,7 +259,10 @@ class Mem0MCPServer {
         process.exit(1);
       }
     } else {
-      console.error("Error: Either MEM0_API_KEY (for cloud storage) or OPENAI_API_KEY (for local storage) must be provided.");
+      console.error("Error: One of the following must be provided:");
+      console.error("  - MEM0_API_KEY (for Mem0 cloud storage)");
+      console.error("  - SUPABASE_URL + SUPABASE_KEY (for Supabase storage)");
+      console.error("  - OPENAI_API_KEY (for local in-memory storage)");
       process.exit(1);
     }
 
@@ -557,6 +609,41 @@ class Mem0MCPServer {
         console.error("Error adding memory using cloud API:", error);
         throw new McpError(ErrorCode.InternalError, `Error adding memory: ${error.message}`);
       }
+    } else if (this.isSupabaseMode && this.supabaseClient) {
+      try {
+        // Format message for the Supabase storage API
+        const messages: Mem0Message[] = [{
+          role: "user",
+          content
+        }];
+
+        // Supabase storage options - using camelCase for local SDK
+        const options: any = {
+          userId: finalUserId,
+          sessionId,
+          metadata
+        };
+
+        // Add agentId and appId if available
+        const finalAppId = appId || process.env.DEFAULT_APP_ID;
+        const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
+        if (finalAppId) options.appId = finalAppId;
+        if (finalAgentId) options.agentId = finalAgentId;
+
+        console.error(`Adding memory to Supabase for user ${finalUserId}`);
+
+        // API call
+        const result = await this.supabaseClient.add(messages, options);
+
+        console.error("Memory added successfully using Supabase storage");
+
+        return {
+          content: [{ type: "text", text: `Memory added successfully. Result: ${JSON.stringify(result)}` }],
+        };
+      } catch (error: any) {
+        console.error("Error adding memory using Supabase storage:", error);
+        throw new McpError(ErrorCode.InternalError, `Error adding memory: ${error.message}`);
+      }
     } else if (this.localClient) {
       try {
         // Format message for the local storage API
@@ -707,6 +794,39 @@ class Mem0MCPServer {
         console.error("Error searching memories using cloud API:", error);
         throw new McpError(ErrorCode.InternalError, `Error searching memories: ${error.message}`);
       }
+    } else if (this.isSupabaseMode && this.supabaseClient) {
+      try {
+        // Get app_id and agent_id - parameter takes precedence over environment
+        const finalAppId = appId || process.env.DEFAULT_APP_ID;
+        const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
+
+        // Supabase storage options - using camelCase for local SDK
+        const options: any = {
+          userId: finalUserId,
+          sessionId,
+          filters
+        };
+
+        // Add agentId and appId if available
+        if (finalAppId) options.appId = finalAppId;
+        if (finalAgentId) options.agentId = finalAgentId;
+
+        console.error(`Searching Supabase memories for query "${query}" and user ${finalUserId}`);
+
+        // API call
+        const results = await this.supabaseClient.search(query, options);
+
+        // Handle potential array or object result
+        const resultsArray = Array.isArray(results) ? results : [results];
+        console.error(`Found ${resultsArray.length} memories using Supabase storage`);
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+        };
+      } catch (error: any) {
+        console.error("Error searching memories using Supabase storage:", error);
+        throw new McpError(ErrorCode.InternalError, `Error searching memories: ${error.message}`);
+      }
     } else if (this.localClient) {
       try {
         // Local storage options
@@ -795,6 +915,34 @@ class Mem0MCPServer {
       } catch (error: any) {
         console.error("Error deleting memory using cloud API:", error);
         throw new McpError(ErrorCode.InternalError, `Error deleting memory: ${error.message}`);
+      }
+    } else if (this.isSupabaseMode && this.supabaseClient) {
+      try {
+        // For Supabase storage, try to use the deleteMemory method
+        try {
+          // @ts-ignore - We'll try to access this method even if TypeScript doesn't recognize it
+          await this.supabaseClient.deleteMemory(memoryId);
+          console.error(`Memory ${memoryId} deleted successfully using Supabase storage deleteMemory`);
+        } catch (innerError) {
+          // If direct method fails, try to access through any internal methods
+          console.error("Using fallback delete method for Supabase storage");
+
+          // @ts-ignore - Accessing potentially private properties
+          if (this.supabaseClient._vectorstore && typeof this.supabaseClient._vectorstore.delete === 'function') {
+            // @ts-ignore
+            await this.supabaseClient._vectorstore.delete({ ids: [memoryId] });
+            console.error(`Memory ${memoryId} deleted successfully using Supabase vectorstore delete`);
+          } else {
+            throw new Error("Supabase client does not support memory deletion");
+          }
+        }
+
+        return {
+          content: [{ type: "text", text: `Memory ${memoryId} deleted successfully` }],
+        };
+      } catch (error: any) {
+        console.error("Error deleting memory using Supabase storage:", error);
+        throw new McpError(ErrorCode.InternalError, `Error deleting memory: ${error.message || "Supabase client does not support memory deletion"}`);
       }
     } else if (this.localClient) {
       try {

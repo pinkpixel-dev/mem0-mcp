@@ -2,8 +2,8 @@
 
 # @pinkpixel/mem0-mcp Project Overview ✨
 
-**Current Version:** 0.5.1
-**Last Updated:** 2025-05-28T05:01:02.482Z
+**Current Version:** 0.6.1
+**Last Updated:** 2025-05-28T06:52:15.847Z
 
 ## Project Summary
 
@@ -35,15 +35,21 @@ The project follows a simple architecture:
 
 ## Storage Modes
 
-The server supports two storage modes:
+The server supports three storage modes:
 
-1. **Cloud Storage Mode** ☁️ (Recommended)
+1. **Cloud Storage Mode** ☁️ (Recommended for production)
    * Uses Mem0's hosted API with a MEM0_API_KEY environment variable
    * Memories are persistently stored on Mem0's cloud servers
    * No local database needed
    * Supports additional features like filtering, thresholds, and metadata
 
-2. **Local Storage Mode** 💾
+2. **Supabase Storage Mode** 🗄️ (Recommended for self-hosting)
+   * Uses Supabase PostgreSQL with pgvector for persistent storage
+   * Requires SUPABASE_URL, SUPABASE_KEY, and OPENAI_API_KEY environment variables
+   * Free tier available, self-hostable, with SQL access and vector search
+   * Comprehensive setup documentation with SQL migrations provided
+
+3. **Local Storage Mode** 💾 (Development/testing only)
    * Uses in-memory storage with an OPENAI_API_KEY environment variable for embeddings
    * Memories are stored in an in-memory vector database (non-persistent by default)
    * Data is lost when the server restarts unless configured for persistent storage
@@ -83,7 +89,7 @@ Development dependencies:
 ```
 mem0-mcp/
 ├── src/
-│   └── index.ts         # Main TypeScript file implementing the MCP server (821 lines)
+│   └── index.ts         # Main TypeScript file implementing the MCP server (853 lines)
 ├── build/               # Compiled JavaScript files (generated)
 ├── vsce/                # VS Code extension files (if applicable)
 ├── config_generator.sh  # Interactive bash script for MCP configuration
@@ -216,9 +222,13 @@ This is a **production-ready, high-quality MCP server** that demonstrates excell
 ✅ **Security Conscious**: Recent updates addressing CVEs in axios and undici dependencies
 ✅ **User-Focused**: Environment variable fallbacks and multiple installation methods for ease of use
 
-### Recent Improvements (v0.5.0-0.5.1)
+### Recent Improvements (v0.5.0-0.6.1)
+- 🚀 **NEW FEATURE (v0.6.0-0.6.1)**: Added Supabase as a third storage option with persistent storage, free tier, and self-hosting capabilities
+- 🗄️ **Supabase Integration**: Full vector search with pgvector, SQL access, and comprehensive setup documentation
 - 🎯 **BREAKING CHANGE**: Fixed incorrect parameter implementation by replacing `orgId`/`projectId` with correct `agentId`/`appId` parameters
 - 🔧 **Root Cause Resolution**: Addressed fundamental misunderstanding of Mem0 API parameter usage
+- ✅ **Parameter Functionality Confirmed**: app_id and run_id parameters now working correctly (v0.5.4)
+- 📊 **Dashboard Integration**: Parameters appear in Mem0 dashboard Event Details as expected
 - 📝 **Enhanced Documentation**: Comprehensive parameter configuration guide with system prompt recommendations
 - 🚀 **Improved API Compliance**: Now uses correct Mem0 API parameters for proper project scoping
 - 🛡️ **Security updates** addressing high-severity vulnerabilities

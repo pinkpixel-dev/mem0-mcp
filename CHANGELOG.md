@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - 2025-05-28
+
+### 🔧 **PATCH - Supabase Configuration Fix**
+- **Fixed embedder configuration** - Corrected OpenAI API key reference for Supabase mode
+- **Published to npmjs** - Updated package available via npx for immediate testing
+- **Confirmed functionality** - Supabase storage mode tested and working with vector search
+- **Memory operations verified** - All tools (add_memory, search_memory, delete_memory) functional with Supabase
+
+## [0.6.0] - 2025-05-28
+
+### 🚀 **NEW FEATURE - Supabase Storage Mode**
+- **Added Supabase as a third storage option** alongside Mem0 cloud and local storage
+- **Persistent storage with free tier** - Supabase offers generous free tier for development
+- **Self-hostable option** - Users can run their own Supabase instance for complete control
+- **Vector search with pgvector** - Efficient similarity search using PostgreSQL's pgvector extension
+- **SQL access** - Direct database access for advanced queries and analytics
+
+### 🔧 **Implementation Details**
+- **Storage mode priority**: Cloud (MEM0_API_KEY) > Supabase (SUPABASE_URL + SUPABASE_KEY) > Local (OPENAI_API_KEY)
+- **Environment variables**: Added support for `SUPABASE_URL` and `SUPABASE_KEY`
+- **Database setup**: Comprehensive SQL migrations for memories and memory_history tables
+- **Vector search function**: Custom PostgreSQL function for similarity search with filtering
+- **Full tool support**: All three tools (add_memory, search_memory, delete_memory) work with Supabase
+
+### 📝 **Documentation Updates**
+- **Comprehensive Supabase setup guide** with step-by-step SQL migrations
+- **Configuration examples** for all three installation methods (global, npx, cloned repo)
+- **Storage mode comparison** highlighting benefits of each option
+- **Environment variable documentation** for Supabase credentials
+
+### 🎯 **Benefits for Users**
+- **Free persistent storage** - Alternative to paid Mem0 cloud service
+- **Local control** - Self-hosted option for privacy and compliance
+- **Scalability** - Grows from free tier to enterprise scale
+- **Advanced features** - Real-time subscriptions, webhooks, direct SQL access
+- **No vendor lock-in** - Open source PostgreSQL with standard SQL
+
 ## [0.5.5] - 2025-05-28
 
 ### ✅ **CONFIRMED WORKING** - `app_id` and `run_id` Parameters
