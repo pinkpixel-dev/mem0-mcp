@@ -704,10 +704,9 @@ class Mem0MCPServer {
         const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
 
         // Cloud API options - using snake_case for API parameters
-        // Note: Mem0 docs recommend version="v2" for add operations (v1 is deprecated)
+        // Note: Search operations don't use version parameter (only for add operations)
         const options: any = {
-          user_id: finalUserId,
-          version: "v2"
+          user_id: finalUserId
         };
 
         // Add app_id and agent_id if available (using snake_case)
@@ -721,10 +720,8 @@ class Mem0MCPServer {
         // Only add threshold if it's a valid number (not null or undefined)
         if (threshold !== undefined && threshold !== null) {
           options.threshold = threshold;
-        } else {
-          // Use the default threshold value from Mem0 API (0.3)
-          options.threshold = 0.3;
         }
+        // Don't set a default threshold - let the API use its own defaults
 
         // Add advanced search parameters (using snake_case)
         if (topK !== undefined) options.top_k = topK;
@@ -741,7 +738,7 @@ class Mem0MCPServer {
         if (finalAppId || sessionId) {
           console.error("Using direct REST API for search due to app_id or run_id parameters");
           try {
-            const apiUrl = 'https://api.mem0.ai/v1/memories/search/';
+            const apiUrl = 'https://api.mem0.ai/v1/memories/search';
             const requestBody = {
               query: query,
               ...options
