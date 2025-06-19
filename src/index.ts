@@ -68,10 +68,12 @@ let MemoryClient: any = null;
 // Type for the arguments received by the MCP tool handlers
 interface Mem0AddToolArgs {
   content: string;
-  userId: string;
+  userId?: string;
   sessionId?: string;  // This maps to run_id in Mem0 API
   agentId?: string;    // The LLM/agent making the tool call
-  appId?: string;      // The user's project (this is what controls project scope!)
+  appId?: string;      // Application identifier (legacy parameter)
+  projectId?: string;  // Project identifier (for mem0 Pro plan project organization)
+  orgId?: string;      // Organization identifier (for mem0 organization-level management)
   metadata?: any;
   // Advanced Mem0 API parameters
   includes?: string;
@@ -86,10 +88,12 @@ interface Mem0AddToolArgs {
 
 interface Mem0SearchToolArgs {
   query: string;
-  userId: string;
+  userId?: string;
   sessionId?: string;  // This maps to run_id in Mem0 API
   agentId?: string;    // The LLM/agent making the tool call
-  appId?: string;      // The user's project (this is what controls project scope!)
+  appId?: string;      // Application identifier (legacy parameter)
+  projectId?: string;  // Project identifier (for mem0 Pro plan project organization)
+  orgId?: string;      // Organization identifier (for mem0 organization-level management)
   filters?: any;
   threshold?: number;
   // Advanced Mem0 API search parameters
@@ -102,9 +106,11 @@ interface Mem0SearchToolArgs {
 
 interface Mem0DeleteToolArgs {
   memoryId: string;
-  userId: string;
+  userId?: string;
   agentId?: string;    // The LLM/agent making the tool call
-  appId?: string;      // The user's project (this is what controls project scope!)
+  appId?: string;      // Application identifier (legacy parameter)
+  projectId?: string;  // Project identifier (for mem0 Pro plan project organization)
+  orgId?: string;      // Organization identifier (for mem0 organization-level management)
 }
 
 // Message type for Mem0 API
@@ -323,7 +329,15 @@ class Mem0MCPServer {
                 },
                 appId: {
                   type: "string",
-                  description: "Optional app ID - identifies the user's project/application. If not provided, uses DEFAULT_APP_ID environment variable.",
+                  description: "Optional app ID - application identifier (legacy parameter). If not provided, uses DEFAULT_APP_ID environment variable.",
+                },
+                projectId: {
+                  type: "string",
+                  description: "Optional project ID - for mem0 Pro plan project organization (e.g., proj_ABC123). If not provided, uses DEFAULT_PROJECT_ID environment variable.",
+                },
+                orgId: {
+                  type: "string",
+                  description: "Optional organization ID - for mem0 organization-level management. If not provided, uses DEFAULT_ORG_ID environment variable.",
                 },
                 metadata: {
                   type: "object",
@@ -389,7 +403,15 @@ class Mem0MCPServer {
                 },
                 appId: {
                   type: "string",
-                  description: "Optional app ID - identifies the user's project/application. If not provided, uses DEFAULT_APP_ID environment variable.",
+                  description: "Optional app ID - application identifier (legacy parameter). If not provided, uses DEFAULT_APP_ID environment variable.",
+                },
+                projectId: {
+                  type: "string",
+                  description: "Optional project ID - for mem0 Pro plan project organization (e.g., proj_ABC123). If not provided, uses DEFAULT_PROJECT_ID environment variable.",
+                },
+                orgId: {
+                  type: "string",
+                  description: "Optional organization ID - for mem0 organization-level management. If not provided, uses DEFAULT_ORG_ID environment variable.",
                 },
                 filters: {
                   type: "object",
@@ -444,7 +466,15 @@ class Mem0MCPServer {
                 },
                 appId: {
                   type: "string",
-                  description: "Optional app ID - identifies the user's project/application. If not provided, uses DEFAULT_APP_ID environment variable.",
+                  description: "Optional app ID - application identifier (legacy parameter). If not provided, uses DEFAULT_APP_ID environment variable.",
+                },
+                projectId: {
+                  type: "string",
+                  description: "Optional project ID - for mem0 Pro plan project organization (e.g., proj_ABC123). If not provided, uses DEFAULT_PROJECT_ID environment variable.",
+                },
+                orgId: {
+                  type: "string",
+                  description: "Optional organization ID - for mem0 organization-level management. If not provided, uses DEFAULT_ORG_ID environment variable.",
                 },
               },
               required: ["memoryId"],
@@ -492,7 +522,7 @@ class Mem0MCPServer {
    */
   private async handleAddMemory(args: Mem0AddToolArgs): Promise<any> {
     const {
-      content, userId, sessionId, agentId, appId, metadata,
+      content, userId, sessionId, agentId, appId, projectId, orgId, metadata,
       includes, excludes, infer, outputFormat, customCategories,
       customInstructions, immutable, expirationDate
     } = args;
@@ -511,13 +541,16 @@ class Mem0MCPServer {
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get app_id and agent_id - parameter takes precedence over environment
+        // Get all parameters - parameter takes precedence over environment
         const finalAppId = appId || process.env.DEFAULT_APP_ID;
         const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
+        const finalProjectId = projectId || process.env.DEFAULT_PROJECT_ID;
+        const finalOrgId = orgId || process.env.DEFAULT_ORG_ID;
 
-        console.error(`Parameter resolution: agentId=${agentId}, appId=${appId}`);
-        console.error(`Environment variables: DEFAULT_AGENT_ID=${process.env.DEFAULT_AGENT_ID}, DEFAULT_APP_ID=${process.env.DEFAULT_APP_ID}`);
-        console.error(`Final values: finalAgentId=${finalAgentId}, finalAppId=${finalAppId}`);
+        console.error(`Parameter resolution:`);
+        console.error(`  Input: agentId=${agentId}, appId=${appId}, projectId=${projectId}, orgId=${orgId}`);
+        console.error(`  Environment: DEFAULT_AGENT_ID=${process.env.DEFAULT_AGENT_ID}, DEFAULT_APP_ID=${process.env.DEFAULT_APP_ID}, DEFAULT_PROJECT_ID=${process.env.DEFAULT_PROJECT_ID}, DEFAULT_ORG_ID=${process.env.DEFAULT_ORG_ID}`);
+        console.error(`  Final: finalAgentId=${finalAgentId}, finalAppId=${finalAppId}, finalProjectId=${finalProjectId}, finalOrgId=${finalOrgId}`);
 
         // Format message for the cloud API
         const messages: Mem0Message[] = [{
@@ -532,9 +565,11 @@ class Mem0MCPServer {
           version: "v2"
         };
 
-        // Add app_id and agent_id if available (using snake_case)
+        // Add all parameters if available (using snake_case for API)
         if (finalAppId) options.app_id = finalAppId;
         if (finalAgentId) options.agent_id = finalAgentId;
+        if (finalProjectId) options.project_id = finalProjectId;
+        if (finalOrgId) options.org_id = finalOrgId;
 
         // Map sessionId to run_id (using snake_case)
         if (sessionId) options.run_id = sessionId;
@@ -624,11 +659,15 @@ class Mem0MCPServer {
           metadata
         };
 
-        // Add agentId and appId if available
+        // Add all parameters if available
         const finalAppId = appId || process.env.DEFAULT_APP_ID;
         const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
+        const finalProjectId = projectId || process.env.DEFAULT_PROJECT_ID;
+        const finalOrgId = orgId || process.env.DEFAULT_ORG_ID;
         if (finalAppId) options.appId = finalAppId;
         if (finalAgentId) options.agentId = finalAgentId;
+        if (finalProjectId) options.projectId = finalProjectId;
+        if (finalOrgId) options.orgId = finalOrgId;
 
         console.error(`Adding memory to Supabase for user ${finalUserId}`);
 
@@ -681,7 +720,7 @@ class Mem0MCPServer {
    */
   private async handleSearchMemory(args: Mem0SearchToolArgs): Promise<any> {
     const {
-      query, userId, sessionId, agentId, appId, filters, threshold,
+      query, userId, sessionId, agentId, appId, projectId, orgId, filters, threshold,
       topK, fields, rerank, keywordSearch, filterMemories
     } = args;
 
@@ -699,9 +738,11 @@ class Mem0MCPServer {
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get app_id and agent_id - parameter takes precedence over environment
+        // Get all parameters - parameter takes precedence over environment
         const finalAppId = appId || process.env.DEFAULT_APP_ID;
         const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
+        const finalProjectId = projectId || process.env.DEFAULT_PROJECT_ID;
+        const finalOrgId = orgId || process.env.DEFAULT_ORG_ID;
 
         // Cloud API options - using snake_case for API parameters
         // Note: Mem0 docs recommend version="v2" for add operations (v1 is deprecated)
@@ -710,9 +751,11 @@ class Mem0MCPServer {
           version: "v2"
         };
 
-        // Add app_id and agent_id if available (using snake_case)
+        // Add all parameters if available (using snake_case)
         if (finalAppId) options.app_id = finalAppId;
         if (finalAgentId) options.agent_id = finalAgentId;
+        if (finalProjectId) options.project_id = finalProjectId;
+        if (finalOrgId) options.org_id = finalOrgId;
 
         // Map sessionId to run_id and other parameters (using snake_case)
         if (sessionId) options.run_id = sessionId;
@@ -796,9 +839,11 @@ class Mem0MCPServer {
       }
     } else if (this.isSupabaseMode && this.supabaseClient) {
       try {
-        // Get app_id and agent_id - parameter takes precedence over environment
+        // Get all parameters - parameter takes precedence over environment
         const finalAppId = appId || process.env.DEFAULT_APP_ID;
         const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
+        const finalProjectId = projectId || process.env.DEFAULT_PROJECT_ID;
+        const finalOrgId = orgId || process.env.DEFAULT_ORG_ID;
 
         // Supabase storage options - using camelCase for local SDK
         const options: any = {
@@ -807,9 +852,11 @@ class Mem0MCPServer {
           filters
         };
 
-        // Add agentId and appId if available
+        // Add all parameters if available
         if (finalAppId) options.appId = finalAppId;
         if (finalAgentId) options.agentId = finalAgentId;
+        if (finalProjectId) options.projectId = finalProjectId;
+        if (finalOrgId) options.orgId = finalOrgId;
 
         console.error(`Searching Supabase memories for query "${query}" and user ${finalUserId}`);
 
@@ -859,7 +906,7 @@ class Mem0MCPServer {
    * Handles deleting a memory using either local or cloud client.
    */
   private async handleDeleteMemory(args: Mem0DeleteToolArgs): Promise<any> {
-    const { memoryId, userId, agentId, appId } = args;
+    const { memoryId, userId, agentId, appId, projectId, orgId } = args;
 
     if (!memoryId) {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: memoryId");
@@ -875,9 +922,11 @@ class Mem0MCPServer {
 
     if (this.isCloudMode && this.cloudClient) {
       try {
-        // Get app_id and agent_id - parameter takes precedence over environment
+        // Get all parameters - parameter takes precedence over environment
         const finalAppId = appId || process.env.DEFAULT_APP_ID;
         const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
+        const finalProjectId = projectId || process.env.DEFAULT_PROJECT_ID;
+        const finalOrgId = orgId || process.env.DEFAULT_ORG_ID;
 
         // Cloud API options - using snake_case for API parameters
         // Note: Delete memory uses v1 API, no version parameter needed
@@ -886,9 +935,11 @@ class Mem0MCPServer {
           user_id: finalUserId
         };
 
-        // Add app_id and agent_id if available (using snake_case)
+        // Add all parameters if available (using snake_case)
         if (finalAppId) options.app_id = finalAppId;
         if (finalAgentId) options.agent_id = finalAgentId;
+        if (finalProjectId) options.project_id = finalProjectId;
+        if (finalOrgId) options.org_id = finalOrgId;
 
         // Try to use the API's deleteMemory method through the client
         try {
