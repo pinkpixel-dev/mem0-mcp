@@ -48,6 +48,8 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'production'; // Use production m
 process.env.LOG_LEVEL = 'error'; // Set log level to error only
 process.env.SILENT = 'true'; // Some libraries respect this
 process.env.QUIET = 'true'; // Some libraries respect this
+// Disable Mem0 telemetry to avoid network calls during initialization
+process.env.MEM0_TELEMETRY = 'false';
 
 // IMPORTANT: Don't globally override stdout as it breaks MCP protocol
 // We'll use more targeted approaches in specific methods
@@ -60,8 +62,10 @@ import {
   McpError,
   ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { Memory as MemoryType } from "mem0ai/oss";
 
-import { Memory } from "mem0ai/oss"; // For local in-memory storage
+// Load Mem0 library after configuring environment to avoid unwanted telemetry
+const { Memory } = await import("mem0ai/oss"); // For local in-memory storage
 // Using dynamic import for cloud API to avoid TypeScript issues
 let MemoryClient: any = null;
 
@@ -123,9 +127,9 @@ class Mem0MCPServer {
   private server: Server;
   private isCloudMode: boolean = false;
   private isSupabaseMode: boolean = false;
-  private localClient?: Memory;
+  private localClient?: MemoryType;
   private cloudClient?: any;
-  private supabaseClient?: Memory;
+  private supabaseClient?: MemoryType;
   private isReady: boolean = false;
 
   constructor() {
