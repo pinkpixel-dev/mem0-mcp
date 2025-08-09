@@ -8,6 +8,7 @@
 [![Mem0](https://img.shields.io/badge/Mem0-2.1%2B-orange.svg)](https://mem0.ai)
 [![Downloads](https://img.shields.io/npm/dm/@pinkpixel/mem0-mcp.svg)](https://www.npmjs.com/package/@pinkpixel/mem0-mcp)
 [![GitHub Stars](https://img.shields.io/github/stars/pinkpixel-dev/mem0-mcp.svg)](https://github.com/pinkpixel-dev/mem0-mcp)
+[![smithery badge](https://smithery.ai/badge/@pinkpixel-dev/mem0-mcp-server)](https://smithery.ai/server/@pinkpixel-dev/mem0-mcp-server)
 
 # @pinkpixel/mem0-mcp MCP Server ✨
 
@@ -58,6 +59,14 @@ This server supports three storage modes:
 ## Installation & Configuration ⚙️
 
 You can run this server in three main ways:
+
+### Installing via Smithery
+
+To install Mem0 Memory Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@pinkpixel-dev/mem0-mcp-server):
+
+```bash
+npx -y @smithery/cli install @pinkpixel-dev/mem0-mcp-server --client claude
+```
 
 ### 1. Global Installation (Recommended for frequent use)
 
