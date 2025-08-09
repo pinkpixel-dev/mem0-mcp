@@ -8,51 +8,27 @@
  * 1. Cloud mode: Uses Mem0's hosted API with MEM0_API_KEY
  * 2. Local mode: Uses in-memory storage with OPENAI_API_KEY for embeddings
  */
+// Complete console logging suppression for MCP protocol compatibility
+// This ensures no library logs interfere with the MCP communication protocol
+const noOp = () => {};
+console.log = noOp;
+console.error = noOp;
+console.warn = noOp;
+console.info = noOp;
+console.debug = noOp;
+console.trace = noOp;
 
-// Create a wrapper around console to safely redirect logs from libraries
-// This ensures MCP protocol communication is not affected
-class SafeLogger {
-  private originalConsoleLog: typeof console.log;
-
-  constructor() {
-    // Store the original console.log
-    this.originalConsoleLog = console.log;
-
-    // Redirect console.log to stderr only for our module
-    console.log = (...args) => {
-      // Check if it's from the mem0ai library or our code
-      const stack = new Error().stack || '';
-      if (stack.includes('mem0ai') || stack.includes('mem0-mcp')) {
-        console.error('[redirected log]', ...args);
-      } else {
-        // Keep normal behavior for MCP protocol and other code
-        this.originalConsoleLog.apply(console, args);
-      }
-    };
-  }
-
-  // Restore original behavior
-  restore() {
-    console.log = this.originalConsoleLog;
-  }
-}
-
-// Apply the safe logger
-const safeLogger = new SafeLogger();
-
-// Disable debug logs in any libraries that respect these environment variables
-process.env.DEBUG = '';  // Disable debug logs
-process.env.NODE_DEBUG = ''; // Disable Node.js internal debugging
-process.env.DEBUG_COLORS = 'no'; // Disable color output in logs
-process.env.NODE_ENV = process.env.NODE_ENV || 'production'; // Use production mode by default
-process.env.LOG_LEVEL = 'error'; // Set log level to error only
-process.env.SILENT = 'true'; // Some libraries respect this
-process.env.QUIET = 'true'; // Some libraries respect this
-// Disable Mem0 telemetry to avoid network calls during initialization
+// Environment variables to disable logging in various libraries
+process.env.DEBUG = '';
+process.env.NODE_DEBUG = '';
+process.env.DEBUG_COLORS = 'no';
+process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+process.env.LOG_LEVEL = 'silent';
+process.env.SILENT = 'true';
+process.env.QUIET = 'true';
 process.env.MEM0_TELEMETRY = 'false';
-
-// IMPORTANT: Don't globally override stdout as it breaks MCP protocol
-// We'll use more targeted approaches in specific methods
+process.env.DISABLE_LOGGING = 'true';
+process.env.NO_COLOR = 'true';
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -69,14 +45,18 @@ let Memory: typeof import("mem0ai/oss").Memory;
 // Using dynamic import for cloud API to avoid TypeScript issues
 let MemoryClient: any = null;
 
-
+// Initialize Memory synchronously to avoid race conditions
+let memoryInitialized = false;
 async function initializeMemory() {
-  const mod = await import("mem0ai/oss");
-  Memory = mod.Memory;
+  if (memoryInitialized) return;
+  try {
+    const mod = await import("mem0ai/oss");
+    Memory = mod.Memory;
+    memoryInitialized = true;
+  } catch (error) {
+    // Silent failure - let the constructor handle missing dependencies
+  }
 }
-
-// Immediately initialize Memory
-initializeMemory();
 // Type for the arguments received by the MCP tool handlers
 interface Mem0AddToolArgs {
   content: string;
@@ -141,24 +121,12 @@ class Mem0MCPServer {
   private isReady: boolean = false;
 
   constructor() {
-    console.error("Initializing Mem0 MCP Server...");
-
-    // Check for Mem0 API key first (for cloud mode)
-    const mem0ApiKey = process.env.MEM0_API_KEY;
-
-    // Check for Supabase credentials (for Supabase mode)
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_KEY;
-
-    // Check for OpenAI API key (for local mode)
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-
     // Initialize MCP Server
     this.server = new Server(
       {
         // These should match package.json
         name: "@pinkpixel/mem0-mcp",
-        version: "0.6.3",
+        version: "0.6.4",
       },
       {
         capabilities: {
@@ -169,55 +137,62 @@ class Mem0MCPServer {
     );
 
     this.setupToolHandlers();
+    
+    // Initialize clients asynchronously but don't block constructor
+    this.initializeClients();
+
+    process.on('SIGINT', async () => {
+      await this.server.close();
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      await this.server.close();
+      process.exit(0);
+    });
+
+    // Cleanup on uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      process.exit(1);
+    });
+  }
+
+  private async initializeClients(): Promise<void> {
+    // Check for environment variables
+    const mem0ApiKey = process.env.MEM0_API_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+
+    // Ensure Memory is initialized
+    await initializeMemory();
 
     // Determine the mode based on available keys (priority: Cloud > Supabase > Local)
     if (mem0ApiKey) {
-      console.error("Using Mem0 cloud storage mode with MEM0_API_KEY");
       this.isCloudMode = true;
 
       // Dynamic import for cloud client
-      import('mem0ai').then(module => {
-        try {
-          MemoryClient = module.default;
-          // Get default app_id and agent_id for fallbacks
-          const defaultAppId = process.env.DEFAULT_APP_ID;
-          const defaultAgentId = process.env.DEFAULT_AGENT_ID;
+      try {
+        const module = await import('mem0ai');
+        MemoryClient = module.default;
+        
+        const clientOptions: any = {
+          apiKey: mem0ApiKey,
+          debug: false,
+          verbose: false,
+          silent: true
+        };
 
-          // Initialize with basic options ONLY - DO NOT set org/project IDs at client level
-          // as they would override per-request parameters
-          const clientOptions: any = {
-            apiKey: mem0ApiKey,
-            // Disable debug logs in the client if possible
-            debug: false,
-            verbose: false,
-            silent: true
-          };
-
-          // NOTE: We intentionally do NOT set organizationId/projectId at client level
-          // because client-level settings override per-request parameters, preventing
-          // environment variable fallbacks and tool parameter overrides from working
-
-          this.cloudClient = new MemoryClient(clientOptions);
-          console.error("Cloud client initialized successfully with options:", {
-            hasApiKey: !!mem0ApiKey,
-            hasDefaultAppId: !!defaultAppId,
-            hasDefaultAgentId: !!defaultAgentId
-          });
-          this.isReady = true;
-        } catch (error) {
-          console.error("Error in cloud client initialization:", error);
-        }
-      }).catch(error => {
-        console.error("Error initializing cloud client:", error);
+        this.cloudClient = new MemoryClient(clientOptions);
+        this.isReady = true;
+      } catch (error) {
         process.exit(1);
-      });
+      }
     } else if (supabaseUrl && supabaseKey) {
-      console.error("Using Supabase storage mode with SUPABASE_URL and SUPABASE_KEY");
       this.isSupabaseMode = true;
 
       try {
         // Initialize Supabase client with vector store and history store
-        // Using exact configuration format from mem0 docs
         const supabaseConfig = {
           vectorStore: {
             provider: "supabase",
@@ -248,14 +223,11 @@ class Mem0MCPServer {
         };
 
         this.supabaseClient = new Memory(supabaseConfig);
-        console.error("Supabase client initialized successfully");
         this.isReady = true;
       } catch (error) {
-        console.error("Error initializing Supabase client:", error);
         process.exit(1);
       }
     } else if (openaiApiKey) {
-      console.error("Using local in-memory storage mode with OPENAI_API_KEY");
       this.isCloudMode = false;
 
       try {
@@ -267,46 +239,14 @@ class Mem0MCPServer {
               collectionName: "mem0_default_collection"
             }
           }
-          // Add silent options if supported by the mem0ai library
-          // Options like debug, silent, verbose don't exist in the type but might be supported at runtime
         });
-        console.error("Local client initialized successfully");
         this.isReady = true;
       } catch (error) {
-        console.error("Error initializing local client:", error);
         process.exit(1);
       }
     } else {
-      console.error("Error: One of the following must be provided:");
-      console.error("  - MEM0_API_KEY (for Mem0 cloud storage)");
-      console.error("  - SUPABASE_URL + SUPABASE_KEY (for Supabase storage)");
-      console.error("  - OPENAI_API_KEY (for local in-memory storage)");
       process.exit(1);
     }
-
-    process.on('SIGINT', async () => {
-      console.error("Received SIGINT signal, shutting down...");
-      // Restore original console.log before exit
-      safeLogger.restore();
-      await this.server.close();
-      process.exit(0);
-    });
-
-    process.on('SIGTERM', async () => {
-      console.error("Received SIGTERM signal, shutting down...");
-      // Restore original console.log before exit
-      safeLogger.restore();
-      await this.server.close();
-      process.exit(0);
-    });
-
-    // Cleanup on uncaught exceptions
-    process.on('uncaughtException', (error) => {
-      console.error("Uncaught exception:", error);
-      // Restore original console.log before exit
-      safeLogger.restore();
-      process.exit(1);
-    });
   }
 
   /**
@@ -522,8 +462,6 @@ class Mem0MCPServer {
         if (error instanceof McpError) {
           throw error;
         }
-
-        console.error(`Error executing tool:`, error);
         throw new McpError(ErrorCode.InternalError, `Error executing tool: ${error.message || 'Unknown error'}`);
       }
     });
@@ -549,8 +487,6 @@ class Mem0MCPServer {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId (and no DEFAULT_USER_ID environment variable set)");
     }
 
-    console.error(`Adding memory for user ${finalUserId}`);
-
     if (this.isCloudMode && this.cloudClient) {
       try {
         // Get all parameters - parameter takes precedence over environment
@@ -558,11 +494,6 @@ class Mem0MCPServer {
         const finalAgentId = agentId || process.env.DEFAULT_AGENT_ID;
         const finalProjectId = projectId || process.env.DEFAULT_PROJECT_ID;
         const finalOrgId = orgId || process.env.DEFAULT_ORG_ID;
-
-        console.error(`Parameter resolution:`);
-        console.error(`  Input: agentId=${agentId}, appId=${appId}, projectId=${projectId}, orgId=${orgId}`);
-        console.error(`  Environment: DEFAULT_AGENT_ID=${process.env.DEFAULT_AGENT_ID}, DEFAULT_APP_ID=${process.env.DEFAULT_APP_ID}, DEFAULT_PROJECT_ID=${process.env.DEFAULT_PROJECT_ID}, DEFAULT_ORG_ID=${process.env.DEFAULT_ORG_ID}`);
-        console.error(`  Final: finalAgentId=${finalAgentId}, finalAppId=${finalAppId}, finalProjectId=${finalProjectId}, finalOrgId=${finalOrgId}`);
 
         // Format message for the cloud API
         const messages: Mem0Message[] = [{
@@ -587,8 +518,6 @@ class Mem0MCPServer {
         if (sessionId) options.run_id = sessionId;
         if (metadata) options.metadata = metadata;
 
-        console.error(`API call options:`, JSON.stringify(options, null, 2));
-
         // Add advanced Mem0 API parameters (using snake_case)
         if (includes) options.includes = includes;
         if (excludes) options.excludes = excludes;
@@ -605,15 +534,12 @@ class Mem0MCPServer {
 
         // Always try direct REST API first when app_id or run_id are provided
         if (finalAppId || sessionId) {
-          console.error("Using direct REST API due to app_id or run_id parameters");
           try {
             const apiUrl = 'https://api.mem0.ai/v1/memories/';
             const requestBody = {
               messages: messages,
               ...options
             };
-
-            console.error("Making direct API call with body:", JSON.stringify(requestBody, null, 2));
 
             const response = await fetch(apiUrl, {
               method: 'POST',
@@ -631,9 +557,7 @@ class Mem0MCPServer {
 
             result = await response.json();
             usedDirectAPI = true;
-            console.error("Memory added successfully using direct REST API");
           } catch (directError: any) {
-            console.error("Direct API call failed, falling back to SDK:", directError.message);
             // Fall through to SDK attempt
           }
         }
@@ -642,9 +566,7 @@ class Mem0MCPServer {
         if (!usedDirectAPI) {
           try {
             result = await this.cloudClient.add(messages, options);
-            console.error("Memory added successfully using cloud API SDK");
           } catch (sdkError: any) {
-            console.error("SDK method failed:", sdkError.message);
             throw sdkError;
           }
         }
@@ -653,7 +575,6 @@ class Mem0MCPServer {
           content: [{ type: "text", text: `Memory added successfully. Result: ${JSON.stringify(result)}` }],
         };
       } catch (error: any) {
-        console.error("Error adding memory using cloud API:", error);
         throw new McpError(ErrorCode.InternalError, `Error adding memory: ${error.message}`);
       }
     } else if (this.isSupabaseMode && this.supabaseClient) {
@@ -681,18 +602,13 @@ class Mem0MCPServer {
         if (finalProjectId) options.projectId = finalProjectId;
         if (finalOrgId) options.orgId = finalOrgId;
 
-        console.error(`Adding memory to Supabase for user ${finalUserId}`);
-
         // API call
         const result = await this.supabaseClient.add(messages, options);
-
-        console.error("Memory added successfully using Supabase storage");
 
         return {
           content: [{ type: "text", text: `Memory added successfully. Result: ${JSON.stringify(result)}` }],
         };
       } catch (error: any) {
-        console.error("Error adding memory using Supabase storage:", error);
         throw new McpError(ErrorCode.InternalError, `Error adding memory: ${error.message}`);
       }
     } else if (this.localClient) {
@@ -713,13 +629,10 @@ class Mem0MCPServer {
         // API call
         const result = await this.localClient.add(messages, options);
 
-        console.error("Memory added successfully using local storage");
-
         return {
           content: [{ type: "text", text: `Memory added successfully. Result: ${JSON.stringify(result)}` }],
         };
       } catch (error: any) {
-        console.error("Error adding memory using local storage:", error);
         throw new McpError(ErrorCode.InternalError, `Error adding memory: ${error.message}`);
       }
     } else {
@@ -745,8 +658,6 @@ class Mem0MCPServer {
     if (!finalUserId) {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId (and no DEFAULT_USER_ID environment variable set)");
     }
-
-    console.error(`Searching memories for query "${query}" and user ${finalUserId}`);
 
     if (this.isCloudMode && this.cloudClient) {
       try {
@@ -791,15 +702,12 @@ class Mem0MCPServer {
 
         // Always try direct REST API first when app_id or run_id are provided
         if (finalAppId || sessionId) {
-          console.error("Using direct REST API for search due to app_id or run_id parameters");
           try {
             const apiUrl = 'https://api.mem0.ai/v1/memories/search';
             const requestBody = {
               query: query,
               ...options
             };
-
-            console.error("Making direct search API call with body:", JSON.stringify(requestBody, null, 2));
 
             const response = await fetch(apiUrl, {
               method: 'POST',
@@ -817,9 +725,7 @@ class Mem0MCPServer {
 
             results = await response.json();
             usedDirectAPI = true;
-            console.error("Search completed successfully using direct REST API");
           } catch (directError: any) {
-            console.error("Direct search API call failed, falling back to SDK:", directError.message);
             // Fall through to SDK attempt
           }
         }
@@ -828,22 +734,18 @@ class Mem0MCPServer {
         if (!usedDirectAPI) {
           try {
             results = await this.cloudClient.search(query, options);
-            console.error("Search completed successfully using cloud API SDK");
           } catch (sdkError: any) {
-            console.error("SDK search method failed:", sdkError.message);
             throw sdkError;
           }
         }
 
         // Handle potential array or object result
         const resultsArray = Array.isArray(results) ? results : [results];
-        console.error(`Found ${resultsArray.length} memories using cloud API`);
 
         return {
           content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
         };
       } catch (error: any) {
-        console.error("Error searching memories using cloud API:", error);
         throw new McpError(ErrorCode.InternalError, `Error searching memories: ${error.message}`);
       }
     } else if (this.isSupabaseMode && this.supabaseClient) {
@@ -867,20 +769,16 @@ class Mem0MCPServer {
         if (finalProjectId) options.projectId = finalProjectId;
         if (finalOrgId) options.orgId = finalOrgId;
 
-        console.error(`Searching Supabase memories for query "${query}" and user ${finalUserId}`);
-
         // API call
         const results = await this.supabaseClient.search(query, options);
 
         // Handle potential array or object result
         const resultsArray = Array.isArray(results) ? results : [results];
-        console.error(`Found ${resultsArray.length} memories using Supabase storage`);
 
         return {
           content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
         };
       } catch (error: any) {
-        console.error("Error searching memories using Supabase storage:", error);
         throw new McpError(ErrorCode.InternalError, `Error searching memories: ${error.message}`);
       }
     } else if (this.localClient) {
@@ -897,13 +795,11 @@ class Mem0MCPServer {
 
         // Handle potential array or object result
         const resultsArray = Array.isArray(results) ? results : [results];
-        console.error(`Found ${resultsArray.length} memories using local storage`);
 
         return {
           content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
         };
       } catch (error: any) {
-        console.error("Error searching memories using local storage:", error);
         throw new McpError(ErrorCode.InternalError, `Error searching memories: ${error.message}`);
       }
     } else {
@@ -926,8 +822,6 @@ class Mem0MCPServer {
     if (!finalUserId) {
       throw new McpError(ErrorCode.InvalidParams, "Missing required argument: userId (and no DEFAULT_USER_ID environment variable set)");
     }
-
-    console.error(`Attempting to delete memory with ID ${memoryId} for user ${finalUserId}`);
 
     if (this.isCloudMode && this.cloudClient) {
       try {
@@ -954,10 +848,8 @@ class Mem0MCPServer {
         try {
           // @ts-ignore - We'll try to access this method even if TypeScript doesn't recognize it
           await this.cloudClient.deleteMemory(memoryId);
-          console.error(`Memory ${memoryId} deleted successfully using cloud API's deleteMemory`);
         } catch (innerError) {
           // If that fails, try to use a generic request method
-          console.error("Using fallback delete method for cloud API");
           await fetch(`https://api.mem0.ai/v1/memories/${memoryId}/`, {
             method: 'DELETE',
             headers: {
@@ -966,14 +858,12 @@ class Mem0MCPServer {
             },
             body: JSON.stringify(options)
           });
-          console.error(`Memory ${memoryId} deleted successfully using direct API request`);
         }
 
         return {
           content: [{ type: "text", text: `Memory ${memoryId} deleted successfully` }],
         };
       } catch (error: any) {
-        console.error("Error deleting memory using cloud API:", error);
         throw new McpError(ErrorCode.InternalError, `Error deleting memory: ${error.message}`);
       }
     } else if (this.isSupabaseMode && this.supabaseClient) {
@@ -982,16 +872,13 @@ class Mem0MCPServer {
         try {
           // @ts-ignore - We'll try to access this method even if TypeScript doesn't recognize it
           await this.supabaseClient.deleteMemory(memoryId);
-          console.error(`Memory ${memoryId} deleted successfully using Supabase storage deleteMemory`);
         } catch (innerError) {
           // If direct method fails, try to access through any internal methods
-          console.error("Using fallback delete method for Supabase storage");
 
           // @ts-ignore - Accessing potentially private properties
           if (this.supabaseClient._vectorstore && typeof this.supabaseClient._vectorstore.delete === 'function') {
             // @ts-ignore
             await this.supabaseClient._vectorstore.delete({ ids: [memoryId] });
-            console.error(`Memory ${memoryId} deleted successfully using Supabase vectorstore delete`);
           } else {
             throw new Error("Supabase client does not support memory deletion");
           }
@@ -1001,7 +888,6 @@ class Mem0MCPServer {
           content: [{ type: "text", text: `Memory ${memoryId} deleted successfully` }],
         };
       } catch (error: any) {
-        console.error("Error deleting memory using Supabase storage:", error);
         throw new McpError(ErrorCode.InternalError, `Error deleting memory: ${error.message || "Supabase client does not support memory deletion"}`);
       }
     } else if (this.localClient) {
@@ -1012,16 +898,13 @@ class Mem0MCPServer {
         try {
           // @ts-ignore - We'll try to access this method even if TypeScript doesn't recognize it
           await this.localClient.deleteMemory(memoryId);
-          console.error(`Memory ${memoryId} deleted successfully using local storage deleteMemory`);
         } catch (innerError) {
-          // If direct method fails, try to access through any internal methods
-          console.error("Using fallback delete method for local storage");
+
 
           // @ts-ignore - Accessing potentially private properties
           if (this.localClient._vectorstore && typeof this.localClient._vectorstore.delete === 'function') {
             // @ts-ignore
             await this.localClient._vectorstore.delete({ ids: [memoryId] });
-            console.error(`Memory ${memoryId} deleted successfully using vectorstore delete`);
           } else {
             throw new Error("Local client does not support memory deletion");
           }
@@ -1031,7 +914,6 @@ class Mem0MCPServer {
           content: [{ type: "text", text: `Memory ${memoryId} deleted successfully` }],
         };
       } catch (error: any) {
-        console.error("Error deleting memory using local storage:", error);
         throw new McpError(ErrorCode.InternalError, `Error deleting memory: ${error.message || "Local client does not support memory deletion"}`);
       }
     } else {
@@ -1043,18 +925,13 @@ class Mem0MCPServer {
    * Starts the MCP server.
    */
   public async start(): Promise<void> {
-    console.error("Starting Mem0 MCP Server...");
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error("Mem0 MCP Server is running.");
   }
 }
 
 // Start the server
 const server = new Mem0MCPServer();
 server.start().catch((error) => {
-  console.error("Failed to start server:", error);
-  // Restore original console.log before exit
-  safeLogger.restore();
   process.exit(1);
 });
