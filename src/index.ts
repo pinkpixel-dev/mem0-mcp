@@ -65,10 +65,18 @@ import {
 import type { Memory as MemoryType } from "mem0ai/oss";
 
 // Load Mem0 library after configuring environment to avoid unwanted telemetry
-const { Memory } = await import("mem0ai/oss"); // For local in-memory storage
+let Memory: typeof import("mem0ai/oss").Memory;
 // Using dynamic import for cloud API to avoid TypeScript issues
 let MemoryClient: any = null;
 
+
+async function initializeMemory() {
+  const mod = await import("mem0ai/oss");
+  Memory = mod.Memory;
+}
+
+// Immediately initialize Memory
+initializeMemory();
 // Type for the arguments received by the MCP tool handlers
 interface Mem0AddToolArgs {
   content: string;
