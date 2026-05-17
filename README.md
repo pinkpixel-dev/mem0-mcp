@@ -1,4 +1,4 @@
-![Mem0 Logo](https://res.cloudinary.com/di7ctlowx/image/upload/v1741739911/mem0-logo_dlssjm.svg)
+![Mem0 MCP Logo](mem0-mcp-logo.png)
 
 [![npm version](https://badge.fury.io/js/@pinkpixel%2Fmem0-mcp.svg)](https://badge.fury.io/js/@pinkpixel%2Fmem0-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
