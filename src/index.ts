@@ -702,48 +702,28 @@ class Mem0MCPServer {
         if (keywordSearch !== undefined) options.keyword_search = keywordSearch;
         if (filterMemories !== undefined) options.filter_memories = filterMemories;
 
-        // API call - try direct REST API approach first for better parameter support
+        // Always use direct REST API for search. The SDK mem0ai 2.x calls v2 which
+        // requires `filters` and silently returns empty if missing (BL-55 root cause,
+        // diagnosed 12 May 2026 PM). v1 endpoint accepts user_id flat, still supported.
         let results;
-        let usedDirectAPI = false;
-
-        // Always try direct REST API first when app_id or run_id are provided
-        if (finalAppId || sessionId) {
-          try {
-            const apiUrl = 'https://api.mem0.ai/v1/memories/search';
-            const requestBody = {
-              query: query,
-              ...options
-            };
-
-            const response = await fetch(apiUrl, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Token ${process.env.MEM0_API_KEY}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(requestBody)
-            });
-
-            if (!response.ok) {
-              const errorText = await response.text();
-              throw new Error(`Direct search API call failed: ${response.status} ${response.statusText} - ${errorText}`);
-            }
-
-            results = await response.json();
-            usedDirectAPI = true;
-          } catch (directError: any) {
-            // Fall through to SDK attempt
-          }
+        const apiUrl = 'https://api.mem0.ai/v1/memories/search/';
+        const requestBody = {
+          query: query,
+          ...options
+        };
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${process.env.MEM0_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Mem0 search API call failed: ${response.status} ${response.statusText} - ${errorText}`);
         }
-
-        // Try SDK if direct API wasn't used or failed
-        if (!usedDirectAPI) {
-          try {
-            results = await this.cloudClient.search(query, options);
-          } catch (sdkError: any) {
-            throw sdkError;
-          }
-        }
+        results = await response.json();
 
         // Handle potential array or object result
         const resultsArray = Array.isArray(results) ? results : [results];
@@ -945,6 +925,7 @@ class Mem0MCPServer {
     const tenantId = process.env.ENTRA_TENANT_ID;
     const audience = process.env.ENTRA_AUDIENCE;            // identifierUri (advertised in /.well-known)
     const audienceGuid = process.env.ENTRA_AUDIENCE_GUID;   // appId GUID (Entra v2 emits this in aud claim)
+    const audienceExtra = process.env.ENTRA_AUDIENCE_EXTRA; // secondary identifierUri accepted in aud (transition / multi-domain)
     const resourceUrl = process.env.RESOURCE_URL;
     if (!tenantId || !audience || !resourceUrl) {
       process.stderr.write('FATAL: ENTRA_TENANT_ID, ENTRA_AUDIENCE, and RESOURCE_URL env vars are required in HTTP mode.\n');
@@ -953,7 +934,7 @@ class Mem0MCPServer {
     // Per Microsoft docs (entra/identity-platform/access-token-claims-reference): v2 tokens carry
     // aud = client ID GUID of the web API; v1 tokens carry aud = appID URI. We accept both for
     // robustness across delegated and client_credentials flows.
-    const acceptedAudiences: string[] = [audience, audienceGuid].filter((x): x is string => !!x);
+    const acceptedAudiences: string[] = [audience, audienceGuid, audienceExtra].filter((x): x is string => !!x);
     const issuer = `https://login.microsoftonline.com/${tenantId}/v2.0`;
     const jwksUri = `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`;
     const JWKS = createRemoteJWKSet(new URL(jwksUri), {
