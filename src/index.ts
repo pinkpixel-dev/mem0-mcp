@@ -499,7 +499,7 @@ class Mem0MCPServer {
               properties: {
                 from: {
                   type: "string",
-                  description: "Adresse UPN de la boite expeditrice (ex: charli@pereneo.eu, paul.rudler@oseys.fr). Doit etre dans la whitelist FROM_WHITELIST sinon erreur from_not_whitelisted.",
+                  description: "Adresse UPN de la boite expeditrice. Convention durable: COMEX humains sur @groupeperenne.com (paul.rudler@, constantin.picoron@, olivier.rudler@), Charli sur @pereneo.eu, agents OSEYS pilotes sur @perennereseau.fr (david@, martin@, mila@), Alicia DG Prosperenne sur @prosperene.eu. JAMAIS @oseys.fr en from par defaut (obsolete post-rebrand, proxy lecture seulement). Doit etre dans la whitelist FROM_WHITELIST sinon erreur from_not_whitelisted (qui retournera la liste exacte des UPNs autorises).",
                 },
                 to: {
                   type: "array",
@@ -1046,6 +1046,7 @@ class Mem0MCPServer {
     }
 
     if (!whitelist.has(from.toLowerCase())) {
+      const allowed = Array.from(whitelist).sort();
       return {
         content: [
           {
@@ -1054,7 +1055,8 @@ class Mem0MCPServer {
               ok: false,
               error: "from_not_whitelisted",
               from,
-              hint: "The sender address is not in FROM_WHITELIST. Contact Paul to extend the whitelist if legitimate.",
+              allowedFrom: allowed,
+              hint: "Le 'from' fourni n'est pas dans la whitelist. Utilise une adresse de la liste 'allowedFrom' ci-dessus. Convention: COMEX humains sur @groupeperenne.com, Charli sur @pereneo.eu, agents OSEYS sur @perennereseau.fr, Alicia sur @prosperene.eu. Les adresses @oseys.fr sont obsoletes post-rebrand.",
             }),
           },
         ],
