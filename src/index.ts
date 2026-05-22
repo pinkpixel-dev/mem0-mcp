@@ -133,6 +133,43 @@ type Mem0Message = {
   content: string;
 };
 
+// Outbound Mailer Graph token cache (in-memory, TTL capped 60s) for send_mail tool.
+// Reset on process restart; Container App rotates the underlying secret externally.
+let _outboundTokenCache: { token: string; expiresAt: number } | null = null;
+
+async function getOutboundGraphToken(tenantId: string, clientId: string, clientSecret: string): Promise<string> {
+  const now = Date.now();
+  if (_outboundTokenCache && _outboundTokenCache.expiresAt > now + 5000) {
+    return _outboundTokenCache.token;
+  }
+  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: "https://graph.microsoft.com/.default",
+    grant_type: "client_credentials",
+  }).toString();
+  const resp = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Graph token acquisition failed: ${resp.status} ${text.slice(0, 300)}`);
+  }
+  const json: any = await resp.json();
+  if (!json.access_token) {
+    throw new Error("Graph token acquisition: no access_token in response");
+  }
+  const expiresInSec = typeof json.expires_in === "number" ? json.expires_in : 3600;
+  _outboundTokenCache = {
+    token: json.access_token,
+    expiresAt: now + Math.min(expiresInSec * 1000, 60_000),
+  };
+  return json.access_token;
+}
+
 class Mem0MCPServer {
   private server: Server;
   private isCloudMode: boolean = false;
@@ -1024,18 +1061,98 @@ class Mem0MCPServer {
       };
     }
 
-    // Phase A skeleton: from is whitelisted but Graph POST is not implemented yet.
+    // Phase B: acquire Graph token (client_credentials), POST sendMail, audit log.
+    const tenantId = process.env.OUTBOUND_MAILER_TENANT_ID;
+    const clientId = process.env.OUTBOUND_MAILER_CLIENT_ID;
+    const clientSecret = process.env.OUTBOUND_MAILER_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        "send_mail: OUTBOUND_MAILER_TENANT_ID / CLIENT_ID / CLIENT_SECRET env vars are required on the server."
+      );
+    }
+
+    let token: string;
+    try {
+      token = await getOutboundGraphToken(tenantId, clientId, clientSecret);
+    } catch (e: any) {
+      console.error(`[send_mail] token_error from=${from}: ${e.message || e}`);
+      return {
+        content: [
+          { type: "text", text: JSON.stringify({ ok: false, error: "graph_token_error", detail: String(e.message || e).slice(0, 300) }) },
+        ],
+      };
+    }
+
+    const recipientsToArr = to.map((addr) => ({ emailAddress: { address: addr } }));
+    const recipientsCcArr = Array.isArray(cc) && cc.length > 0
+      ? cc.map((addr) => ({ emailAddress: { address: addr } }))
+      : undefined;
+
+    const graphBody: any = {
+      message: {
+        subject,
+        body: { contentType: "HTML", content: bodyHtml },
+        toRecipients: recipientsToArr,
+      },
+      saveToSentItems: args.saveToSentItems !== false,
+    };
+    if (recipientsCcArr) graphBody.message.ccRecipients = recipientsCcArr;
+
+    const sendUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(from)}/sendMail`;
+    const sentAt = new Date().toISOString();
+    const recipientsCount = to.length + (cc?.length ?? 0);
+
+    let graphResp: Response;
+    try {
+      graphResp = await fetch(sendUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(graphBody),
+      });
+    } catch (e: any) {
+      console.error(`[send_mail] network_error from=${from} subject="${subject}": ${e.message || e}`);
+      return {
+        content: [
+          { type: "text", text: JSON.stringify({ ok: false, error: "graph_network_error", detail: String(e.message || e).slice(0, 300) }) },
+        ],
+      };
+    }
+
+    if (!graphResp.ok) {
+      let detail = "";
+      try { detail = await graphResp.text(); } catch { /* ignore */ }
+      console.error(`[send_mail] graph_error from=${from} status=${graphResp.status} subject="${subject}" recipients=${recipientsCount} detail=${detail.slice(0, 500)}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              ok: false,
+              error: "graph_error",
+              status: graphResp.status,
+              detail: detail.slice(0, 500),
+            }),
+          },
+        ],
+      };
+    }
+
+    console.log(`[send_mail] sent at=${sentAt} from=${from} subject="${subject}" recipients=${recipientsCount} status=${graphResp.status}`);
+
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify({
-            ok: false,
-            error: "not_implemented_phase_a",
+            ok: true,
+            sentAt,
             from,
-            recipientsCount: to.length + (cc?.length ?? 0),
+            recipientsCount,
             subject,
-            hint: "Phase A skeleton only. Phase B (Graph POST sendMail) pending. See BRIEF_MAIL_TOOL_MCP_v1.md on SharePoint.",
           }),
         },
       ],
