@@ -111,6 +111,22 @@ interface Mem0DeleteToolArgs {
   orgId?: string;      // Organization identifier (for mem0 organization-level management)
 }
 
+// Tool send_mail — multi-mailbox outbound mail via Microsoft Graph.
+// See BRIEF_MAIL_TOOL_MCP_v1.md (SharePoint TECHNIQUE/CLAUDE/1. PERENEO/) for full design.
+// Env vars (required for Phase B implementation, not Phase A skeleton):
+//   OUTBOUND_MAILER_TENANT_ID    : Entra tenant id
+//   OUTBOUND_MAILER_CLIENT_ID    : App Reg appId (Pereneo Charli Outbound Mailer)
+//   OUTBOUND_MAILER_CLIENT_SECRET: client_credentials secret (Key Vault ref recommended)
+//   FROM_WHITELIST               : comma-separated UPNs (e.g. charli@pereneo.eu,paul.rudler@oseys.fr)
+interface SendMailToolArgs {
+  from: string;
+  to: string[];
+  cc?: string[];
+  subject: string;
+  bodyHtml: string;
+  saveToSentItems?: boolean;
+}
+
 // Message type for Mem0 API
 type Mem0Message = {
   role: "user" | "assistant" | "system";
@@ -438,6 +454,42 @@ class Mem0MCPServer {
               required: ["memoryId"],
             },
           },
+          {
+            name: "send_mail",
+            description: "Envoie un mail depuis une boite du tenant Pereneo via Microsoft Graph. La boite expeditrice (from) doit etre dans la whitelist FROM_WHITELIST (cote serveur). Charli redige le bodyHtml en respectant la DA Pereneo (skill local CLI ou knowledge file DAPERENNE_v1.md Project Charli). Pas de confirmation utilisateur bloquante cote tool: l'envoi se fait immediatement a l'appel.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                from: {
+                  type: "string",
+                  description: "Adresse UPN de la boite expeditrice (ex: charli@pereneo.eu, paul.rudler@oseys.fr). Doit etre dans la whitelist FROM_WHITELIST sinon erreur from_not_whitelisted.",
+                },
+                to: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Destinataires principaux (au moins un).",
+                },
+                cc: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Destinataires en copie (optionnel).",
+                },
+                subject: {
+                  type: "string",
+                  description: "Sujet du mail.",
+                },
+                bodyHtml: {
+                  type: "string",
+                  description: "Corps HTML du mail. Charli applique la DA Pereneo (palette, typo Inter, ton COMEX tutoiement / externe vouvoiement, signature contextualisee) en amont de l'appel.",
+                },
+                saveToSentItems: {
+                  type: "boolean",
+                  description: "Si true (defaut), le mail est enregistre dans les Elements envoyes de la boite from.",
+                },
+              },
+              required: ["from", "to", "subject", "bodyHtml"],
+            },
+          },
         ],
       };
     });
@@ -461,6 +513,9 @@ class Mem0MCPServer {
         } else if (name === "delete_memory") {
           const toolArgs = args as unknown as Mem0DeleteToolArgs;
           return await this.handleDeleteMemory(toolArgs);
+        } else if (name === "send_mail") {
+          const toolArgs = args as unknown as SendMailToolArgs;
+          return await this.handleSendMail(toolArgs);
         } else {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
@@ -905,6 +960,86 @@ class Mem0MCPServer {
     } else {
       throw new McpError(ErrorCode.InternalError, "No memory client is available");
     }
+  }
+
+  /**
+   * Handles sending a mail via Microsoft Graph sendMail.
+   *
+   * Phase A skeleton (commit initial): validates required fields, parses FROM_WHITELIST,
+   * checks `from` is whitelisted. Returns not_implemented on success path to signal that
+   * the Graph token + POST flow is not wired yet.
+   *
+   * Phase B (separate commit): acquire client_credentials token, POST /v1.0/users/{from}/sendMail,
+   * audit log (timestamp, from, to/cc counts, subject, caller identity from JWT), return
+   * { ok: true, sentAt, from, recipientsCount } or { ok: false, error }.
+   *
+   * Phase C (separate commit): ApplicationAccessPolicy via Exchange Online + smoke test plan.
+   *
+   * Mandate: Paul 21 May 2026 PM. Brief: BRIEF_MAIL_TOOL_MCP_v1.md (SharePoint TECHNIQUE/CLAUDE/1. PERENEO/).
+   */
+  private async handleSendMail(args: SendMailToolArgs): Promise<any> {
+    const { from, to, cc, subject, bodyHtml } = args;
+
+    if (!from || typeof from !== "string") {
+      throw new McpError(ErrorCode.InvalidParams, "send_mail: 'from' is required (UPN string)");
+    }
+    if (!Array.isArray(to) || to.length === 0) {
+      throw new McpError(ErrorCode.InvalidParams, "send_mail: 'to' must be a non-empty array of UPN strings");
+    }
+    if (!subject || typeof subject !== "string") {
+      throw new McpError(ErrorCode.InvalidParams, "send_mail: 'subject' is required (string)");
+    }
+    if (!bodyHtml || typeof bodyHtml !== "string") {
+      throw new McpError(ErrorCode.InvalidParams, "send_mail: 'bodyHtml' is required (HTML string)");
+    }
+
+    const rawWhitelist = process.env.FROM_WHITELIST || "";
+    const whitelist = new Set(
+      rawWhitelist
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => s.length > 0)
+    );
+
+    if (whitelist.size === 0) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        "send_mail: FROM_WHITELIST env var is not configured on the server. Tool is unavailable."
+      );
+    }
+
+    if (!whitelist.has(from.toLowerCase())) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              ok: false,
+              error: "from_not_whitelisted",
+              from,
+              hint: "The sender address is not in FROM_WHITELIST. Contact Paul to extend the whitelist if legitimate.",
+            }),
+          },
+        ],
+      };
+    }
+
+    // Phase A skeleton: from is whitelisted but Graph POST is not implemented yet.
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            ok: false,
+            error: "not_implemented_phase_a",
+            from,
+            recipientsCount: to.length + (cc?.length ?? 0),
+            subject,
+            hint: "Phase A skeleton only. Phase B (Graph POST sendMail) pending. See BRIEF_MAIL_TOOL_MCP_v1.md on SharePoint.",
+          }),
+        },
+      ],
+    };
   }
 
   /**
