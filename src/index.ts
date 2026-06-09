@@ -118,14 +118,28 @@ interface Mem0DeleteToolArgs {
 //   OUTBOUND_MAILER_CLIENT_ID    : App Reg appId (Pereneo Charli Outbound Mailer)
 //   OUTBOUND_MAILER_CLIENT_SECRET: client_credentials secret (Key Vault ref recommended)
 //   FROM_WHITELIST               : comma-separated UPNs (e.g. charli@pereneo.eu,paul.rudler@oseys.fr)
+interface SendMailAttachment {
+  name: string;
+  contentType: string;
+  contentBytes: string; // base64-encoded file content
+}
+
 interface SendMailToolArgs {
   from: string;
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   bodyHtml: string;
   saveToSentItems?: boolean;
+  attachments?: SendMailAttachment[];
 }
+
+// Microsoft Graph sendMail caps the total request payload (including base64-encoded
+// attachments) at ~4 MB. Base64 expands raw bytes by ~33%, so the practical raw cap
+// is ~3 MB total across all attachments before the JSON envelope itself adds weight.
+// Beyond that, /createUploadSession is required (not implemented here).
+const SEND_MAIL_ATTACHMENT_BASE64_LIMIT = 3_500_000; // ~3.5 MB of base64 chars total
 
 // Message type for Mem0 API
 type Mem0Message = {
@@ -511,6 +525,11 @@ class Mem0MCPServer {
                   items: { type: "string" },
                   description: "Destinataires en copie (optionnel).",
                 },
+                bcc: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Destinataires en copie cachee (optionnel). Utile pour envoi multi-destinataires sans qu'ils se voient entre eux, ou pour s'auto-archiver une copie.",
+                },
                 subject: {
                   type: "string",
                   description: "Sujet du mail.",
@@ -522,6 +541,19 @@ class Mem0MCPServer {
                 saveToSentItems: {
                   type: "boolean",
                   description: "Si true (defaut), le mail est enregistre dans les Elements envoyes de la boite from.",
+                },
+                attachments: {
+                  type: "array",
+                  description: "Pieces jointes (optionnel). Limite cumulee ~3 MB de contenu brut (base64 expanse ~4 MB, plafond Graph sendMail). Au-dela, l'appel echouera avec attachment_too_large.",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string", description: "Nom du fichier visible par le destinataire (ex. 'rapport.pdf')." },
+                      contentType: { type: "string", description: "MIME type (ex. 'application/pdf', 'image/png', 'text/csv')." },
+                      contentBytes: { type: "string", description: "Contenu binaire du fichier encode en base64 (chaine sans prefixe data:)." },
+                    },
+                    required: ["name", "contentType", "contentBytes"],
+                  },
                 },
               },
               required: ["from", "to", "subject", "bodyHtml"],
@@ -1015,7 +1047,7 @@ class Mem0MCPServer {
    * Mandate: Paul 21 May 2026 PM. Brief: BRIEF_MAIL_TOOL_MCP_v1.md (SharePoint TECHNIQUE/CLAUDE/1. PERENEO/).
    */
   private async handleSendMail(args: SendMailToolArgs): Promise<any> {
-    const { from, to, cc, subject, bodyHtml } = args;
+    const { from, to, cc, bcc, subject, bodyHtml, attachments } = args;
 
     if (!from || typeof from !== "string") {
       throw new McpError(ErrorCode.InvalidParams, "send_mail: 'from' is required (UPN string)");
@@ -1028,6 +1060,44 @@ class Mem0MCPServer {
     }
     if (!bodyHtml || typeof bodyHtml !== "string") {
       throw new McpError(ErrorCode.InvalidParams, "send_mail: 'bodyHtml' is required (HTML string)");
+    }
+    if (attachments !== undefined) {
+      if (!Array.isArray(attachments)) {
+        throw new McpError(ErrorCode.InvalidParams, "send_mail: 'attachments' must be an array when provided");
+      }
+      let totalBase64Length = 0;
+      for (let i = 0; i < attachments.length; i++) {
+        const att = attachments[i];
+        if (!att || typeof att !== "object") {
+          throw new McpError(ErrorCode.InvalidParams, `send_mail: attachments[${i}] must be an object`);
+        }
+        if (!att.name || typeof att.name !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, `send_mail: attachments[${i}].name is required (string)`);
+        }
+        if (!att.contentType || typeof att.contentType !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, `send_mail: attachments[${i}].contentType is required (string)`);
+        }
+        if (!att.contentBytes || typeof att.contentBytes !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, `send_mail: attachments[${i}].contentBytes is required (base64 string)`);
+        }
+        totalBase64Length += att.contentBytes.length;
+      }
+      if (totalBase64Length > SEND_MAIL_ATTACHMENT_BASE64_LIMIT) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                ok: false,
+                error: "attachment_too_large",
+                totalBase64Length,
+                limit: SEND_MAIL_ATTACHMENT_BASE64_LIMIT,
+                hint: "Microsoft Graph sendMail plafonne l'envoi inline (toutes pieces jointes confondues) a ~4 MB de payload encode. Reduis la taille des fichiers, ou splitte l'envoi en plusieurs mails. Pour des fichiers plus lourds il faudrait passer par /createUploadSession (non implemente).",
+              }),
+            },
+          ],
+        };
+      }
     }
 
     const rawWhitelist = process.env.FROM_WHITELIST || "";
@@ -1090,6 +1160,17 @@ class Mem0MCPServer {
     const recipientsCcArr = Array.isArray(cc) && cc.length > 0
       ? cc.map((addr) => ({ emailAddress: { address: addr } }))
       : undefined;
+    const recipientsBccArr = Array.isArray(bcc) && bcc.length > 0
+      ? bcc.map((addr) => ({ emailAddress: { address: addr } }))
+      : undefined;
+    const graphAttachments = Array.isArray(attachments) && attachments.length > 0
+      ? attachments.map((att) => ({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: att.name,
+          contentType: att.contentType,
+          contentBytes: att.contentBytes,
+        }))
+      : undefined;
 
     const graphBody: any = {
       message: {
@@ -1100,10 +1181,13 @@ class Mem0MCPServer {
       saveToSentItems: args.saveToSentItems !== false,
     };
     if (recipientsCcArr) graphBody.message.ccRecipients = recipientsCcArr;
+    if (recipientsBccArr) graphBody.message.bccRecipients = recipientsBccArr;
+    if (graphAttachments) graphBody.message.attachments = graphAttachments;
 
     const sendUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(from)}/sendMail`;
     const sentAt = new Date().toISOString();
-    const recipientsCount = to.length + (cc?.length ?? 0);
+    const recipientsCount = to.length + (cc?.length ?? 0) + (bcc?.length ?? 0);
+    const attachmentsCount = attachments?.length ?? 0;
 
     let graphResp: Response;
     try {
@@ -1143,7 +1227,7 @@ class Mem0MCPServer {
       };
     }
 
-    console.log(`[send_mail] sent at=${sentAt} from=${from} subject="${subject}" recipients=${recipientsCount} status=${graphResp.status}`);
+    console.log(`[send_mail] sent at=${sentAt} from=${from} subject="${subject}" recipients=${recipientsCount} attachments=${attachmentsCount} status=${graphResp.status}`);
 
     return {
       content: [
@@ -1154,6 +1238,7 @@ class Mem0MCPServer {
             sentAt,
             from,
             recipientsCount,
+            attachmentsCount,
             subject,
           }),
         },

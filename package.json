@@ -1,6 +1,6 @@
 {
   "name": "mem0-mcp-pereneo",
-  "version": "0.6.4-pereneo.1",
+  "version": "0.6.4-pereneo.2",
   "description": "Pereneo fork of @pinkpixel/mem0-mcp — adds Streamable HTTP transport for Azure Container Apps deployment",
   "private": false,
   "type": "module",

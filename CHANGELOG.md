@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.4-pereneo.2] - 2026-06-09
+
+### ✨ send_mail Phase D — attachments + bcc
+
+Le tool `send_mail` accepte désormais des pièces jointes et des destinataires en
+copie cachée, en plus de `to` et `cc` déjà supportés. Avant ce patch, le COMEX
+ne pouvait envoyer aucune PJ via Charli/Claude Desktop ni faire d'envoi multi-
+destinataires masqués.
+
+- **Schema** : ajout de `bcc: string[]` et `attachments: [{name, contentType, contentBytes}]`
+- **Validation** : chaque attachment requiert `name` + `contentType` + `contentBytes` (base64).
+  Plafond cumulé `SEND_MAIL_ATTACHMENT_BASE64_LIMIT = 3.5 MB` de base64 (≈ 2.6 MB de
+  fichier brut) pour rester sous le cap Graph sendMail ~4 MB. Au-delà, retour
+  `attachment_too_large` avec hint (pas d'`createUploadSession` implémenté).
+- **Payload Graph** : injection de `message.bccRecipients` et `message.attachments[]`
+  avec le `@odata.type` `#microsoft.graph.fileAttachment`.
+- **Audit log** : `recipientsCount` inclut désormais les BCC ; ajout du champ
+  `attachments` dans la ligne `[send_mail] sent`.
+- **Retour** : `attachmentsCount` ajouté à la réponse `ok: true`.
+
+Files changed : `src/index.ts`.
+
 ## [0.6.4-pereneo.1] - 2026-05-01
 
 ### 🔧 BL-47 — MCP HTTP spec §3 conformance fix
