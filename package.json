@@ -18,8 +18,8 @@
     "inspector": "npx @modelcontextprotocol/inspector build/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.12.0",
-    "mem0ai": "^2.1.27"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "mem0ai": "^3.0.10"
   },
   "devDependencies": {
     "@types/node": "^22.15.23",

@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-06-24
+
+### 🚀 **MAJOR RELEASE - Platform V3 Modernization & Modular Architecture**
+- **Upgraded SDK & Protocol** - Bumped `mem0ai` to `3.0.10` and `@modelcontextprotocol/sdk` to `1.29.0` for full compatibility with modern V3 memory pipelines.
+- **Modular Adapter Pattern** - Refactored the monolithic `src/index.ts` into a clean multi-file architecture with backend adapters:
+  - [types.ts](file:///home/sizzlebop/PINKPIXEL/PROJECTS/CURRENT/mem0-mcp/src/types.ts): standard data contracts and interfaces.
+  - [base.ts](file:///home/sizzlebop/PINKPIXEL/PROJECTS/CURRENT/mem0-mcp/src/backends/base.ts): base abstract class interface.
+  - [cloud.ts](file:///home/sizzlebop/PINKPIXEL/PROJECTS/CURRENT/mem0-mcp/src/backends/cloud.ts): Platform V3 client integrations.
+  - [supabase.ts](file:///home/sizzlebop/PINKPIXEL/PROJECTS/CURRENT/mem0-mcp/src/backends/supabase.ts): self-hosted Supabase compatibility.
+  - [local.ts](file:///home/sizzlebop/PINKPIXEL/PROJECTS/CURRENT/mem0-mcp/src/backends/local.ts): local in-memory compatibility.
+- **Async Polling for V3 Additions** - Implemented automatic background polling (wait/poll with configurable timeout and `waitForCompletion` flag) for asynchronous memory processing events.
+- **Scope Parameters Normalization** - Automatically normalizes `userId`, `agentId`, `appId`, and `runId`/`sessionId` into V3 search/list query `filters` to bypass API changes without breaking client configuration.
+- **Standardized Memory Tools Surface** - Expanded the exposed tool set:
+  - `add_memory` (Updated for async V3 and structural message payloads)
+  - `search_memories` / `search_memory` (Search with hybrid retrieval and filters mapping)
+  - `list_memories` (Paginated listings)
+  - `get_memory` (Single record fetch)
+  - `update_memory` (Deliberate memory editing)
+  - `delete_memory` (Single record removal)
+  - `get_memory_history` (Memory revision logs, cloud only)
+  - `get_memory_capabilities` (Exposes feature matrix of active backend mode)
+
 ## [0.6.1] - 2025-05-28
 
 ### 🔧 **PATCH - Supabase Configuration Fix**

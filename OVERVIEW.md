@@ -2,94 +2,89 @@
 
 # @pinkpixel/mem0-mcp Project Overview ✨
 
-**Current Version:** 0.6.1
-**Last Updated:** 2025-05-28T06:52:15.847Z
+**Current Version:** 1.0.0
+**Last Updated:** 2026-06-24T21:00:00Z
 
 ## Project Summary
 
-`@pinkpixel/mem0-mcp` is a Model Context Protocol (MCP) server that integrates with [Mem0.ai](https://mem0.ai/) to provide persistent memory capabilities for Large Language Models (LLMs). It allows AI agents to store and retrieve information across sessions, enhancing their ability to maintain context and remember important information.
+`@pinkpixel/mem0-mcp` is a Model Context Protocol (MCP) server that integrates with [Mem0.ai](https://mem0.ai/) to provide persistent memory capabilities for Large Language Models (LLMs). It allows AI agents to store and retrieve information across sessions, supporting the modern **Mem0 Platform API V3** pipeline.
 
 ## Purpose
 
-The primary purpose of this project is to bridge the gap between LLMs and persistent memory storage. LLMs typically have limited context windows and no built-in ability to remember information across sessions. This MCP server solves that problem by providing tools that allow LLMs to:
+The primary purpose of this project is to bridge the gap between LLMs and persistent memory storage. This MCP server solves that problem by providing tools that allow LLMs to:
 
-1. Store important information as memories
-2. Search for relevant memories based on semantic similarity
-3. Delete specific memories when they're no longer needed
+1. Store important information as memories via V3's additive pipeline.
+2. Search for relevant memories based on hybrid vector and keyword retrieval.
+3. List, fetch, update, delete, and audit memory histories cleanly.
 
 ## Architecture
 
-The project follows a simple architecture:
+The project follows a modular, provider-adapter architecture:
 
-1. **MCP Server Layer**: Implements the Model Context Protocol using the `@modelcontextprotocol/sdk` package
-2. **Memory Management Layer**: Interfaces with Mem0.ai's API for cloud storage or uses local in-memory storage
-3. **Tool Handlers**: Implements the functionality for adding, searching, and deleting memories
+1. **MCP Server Layer**: Implements the Model Context Protocol using the `@modelcontextprotocol/sdk` package.
+2. **Backend Adapter Interface**: Defines a common contract interface (`MemoryBackend`) for all data interactions.
+3. **Backend Adapters**: Implements individual adapter classes for Cloud API V3, Supabase, and Local in-memory modes.
 
 ### Key Components
 
-- **Mem0MCPServer Class**: The main class that initializes the server, sets up tool handlers, and implements the core functionality
-- **SafeLogger Class**: An innovative utility class that selectively redirects console.log calls from the mem0ai library to stderr without disrupting MCP protocol communication. This solves a critical issue where library output could break the MCP protocol.
-- **Tool Handlers**: Functions that handle the `add_memory`, `search_memory`, and `delete_memory` tools with comprehensive error handling
-- **Configuration Generator**: A sophisticated 403-line bash script with colorful ASCII art, interactive menus, and multiple configuration options
-- **Dynamic Client Initialization**: Smart detection of available API keys to automatically choose between cloud and local storage modes
+- **Mem0MCPServer Class**: The main orchestrator that registers standard schemas and handles JSON-RPC tool callbacks.
+- **MemoryBackend Class**: The parent abstract contract class for backend isolation.
+- **CloudBackend Class**: Maps scope query params into nested filters, handles async background polling for additions, and queries the Mem0 Cloud V3 API.
+- **SupabaseBackend Class**: Connects to pgvector-enabled PostgreSQL for custom database self-hosting.
+- **LocalBackend Class**: Simple in-memory collection vector store for testing and quick local usage.
+- **Capability Gating**: Provides structured capability details indicating which tools are supported by the active backend.
 
 ## Storage Modes
 
 The server supports three storage modes:
 
 1. **Cloud Storage Mode** ☁️ (Recommended for production)
-   * Uses Mem0's hosted API with a MEM0_API_KEY environment variable
-   * Memories are persistently stored on Mem0's cloud servers
-   * No local database needed
-   * Supports additional features like filtering, thresholds, and metadata
+   * Uses Mem0's hosted API with a MEM0_API_KEY environment variable.
+   * Memories are persistently stored on Mem0's cloud servers.
+   * Supports advanced filters, async additions, memory history logs, and batch operations.
 
 2. **Supabase Storage Mode** 🗄️ (Recommended for self-hosting)
-   * Uses Supabase PostgreSQL with pgvector for persistent storage
-   * Requires SUPABASE_URL, SUPABASE_KEY, and OPENAI_API_KEY environment variables
-   * Free tier available, self-hostable, with SQL access and vector search
-   * Comprehensive setup documentation with SQL migrations provided
+   * Uses Supabase PostgreSQL with pgvector for persistent storage.
+   * Requires SUPABASE_URL, SUPABASE_KEY, and OPENAI_API_KEY environment variables.
+   * Standard SQL access with vector similarity functions.
 
 3. **Local Storage Mode** 💾 (Development/testing only)
-   * Uses in-memory storage with an OPENAI_API_KEY environment variable for embeddings
-   * Memories are stored in an in-memory vector database (non-persistent by default)
-   * Data is lost when the server restarts unless configured for persistent storage
-   * Useful for development or testing purposes
+   * Uses in-memory storage with an OPENAI_API_KEY environment variable for embeddings.
+   * Memories are stored in an in-memory vector database (non-persistent).
 
 ## Tools Provided
 
-The server provides three main tools:
+The server provides 9 modernized tools:
 
-1. **add_memory**: Stores a piece of text as a memory in Mem0
-   * Required parameters: `content`
-   * Optional parameters: `userId`, `sessionId`, `agentId`, `appId`, `metadata`
-   * Advanced parameters: `includes`, `excludes`, `infer`, `outputFormat`, `customCategories`, `customInstructions`, `immutable`, `expirationDate`
-
-2. **search_memory**: Searches for memories based on a query
-   * Required parameters: `query`
-   * Optional parameters: `userId`, `sessionId`, `agentId`, `appId`, `filters`, `threshold`
-   * Advanced parameters: `topK`, `fields`, `rerank`, `keywordSearch`, `filterMemories`
-
-3. **delete_memory**: Deletes a specific memory by ID
-   * Required parameters: `memoryId`
-   * Optional parameters: `userId`, `agentId`, `appId`
+1. **add_memory**: Stores memories from a text string or structured message arrays (handles async polling).
+2. **search_memories**: Searches memories using semantic and BM25 hybrid filters.
+3. **search_memory**: Backward-compatible alias for search_memories.
+4. **list_memories**: Paginated retrieval of stored memory records under specific scopes.
+5. **get_memory**: Retrieves a single memory record by its ID.
+6. **update_memory**: Modifies the text or metadata of a memory.
+7. **delete_memory**: Deletes a memory by ID.
+8. **get_memory_history**: Retrieves the audit trail of memory revisions (cloud only).
+9. **get_memory_capabilities**: Reports the capabilities and API features of the active backend.
 
 ## Dependencies
 
 The project has the following key dependencies:
 
-- **@modelcontextprotocol/sdk (1.12.0)**: For implementing the MCP server
-- **mem0ai (^2.1.27)**: The Node.js SDK for Mem0.ai
-
-Development dependencies:
-- **@types/node (^22.15.23)**: TypeScript type definitions for Node.js
-- **typescript (^5.8.3)**: For TypeScript compilation
+- **@modelcontextprotocol/sdk (1.29.0)**: For implementing the MCP server.
+- **mem0ai (^3.0.10)**: The modern Node.js SDK for Mem0.ai.
 
 ## File Structure
 
 ```
 mem0-mcp/
 ├── src/
-│   └── index.ts         # Main TypeScript file implementing the MCP server (853 lines)
+│   ├── index.ts         # Main entry point and MCP Server definition
+│   ├── types.ts         # Shared typescript contracts and capabilities
+│   └── backends/
+│       ├── base.ts      # Base abstract adapter class
+│       ├── cloud.ts     # Platform V3 Cloud adapter
+│       ├── supabase.ts  # Self-hosted Supabase adapter
+│       └── local.ts     # In-memory local adapter
 ├── build/               # Compiled JavaScript files (generated)
 ├── vsce/                # VS Code extension files (if applicable)
 ├── config_generator.sh  # Interactive bash script for MCP configuration
