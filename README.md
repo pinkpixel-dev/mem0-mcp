@@ -97,13 +97,7 @@ Configure your MCP client to use the global command:
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "your-agent-id",
         "DEFAULT_APP_ID": "your-app-id"
-      },
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory",
-        "delete_memory"
-      ]
+      }
     }
   }
 }
@@ -124,13 +118,7 @@ Configure your MCP client to use the global command:
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "your-agent-id",
         "DEFAULT_APP_ID": "your-app-id"
-      },
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory",
-        "delete_memory"
-      ]
+      }
     }
   }
 }
@@ -147,13 +135,7 @@ Configure your MCP client to use the global command:
       "env": {
         "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
         "DEFAULT_USER_ID": "user123"
-      },
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory",
-        "delete_memory"
-      ]
+      }
     }
   }
 }
@@ -179,13 +161,7 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "your-agent-id",
         "DEFAULT_APP_ID": "your-app-id"
-      },
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory",
-        "delete_memory"
-      ]
+      }
     }
   }
 }
@@ -209,13 +185,7 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "your-agent-id",
         "DEFAULT_APP_ID": "your-app-id"
-      },
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory",
-        "delete_memory"
-      ]
+      }
     }
   }
 }
@@ -235,13 +205,7 @@ Configure your MCP client (e.g., Claude Desktop, Cursor, Cline, Roo Code, etc.) 
       "env": {
         "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY_HERE",
         "DEFAULT_USER_ID": "user123"
-      },
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory",
-        "delete_memory"
-      ]
+      }
     }
   }
 }
@@ -277,13 +241,7 @@ Then, configure your MCP client to run the built script directly using `node`:
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "your-agent-id",
         "DEFAULT_APP_ID": "your-app-id"
-      },
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory",
-        "delete_memory"
-      ]
+      }
     }
   }
 }
@@ -306,13 +264,7 @@ Then, configure your MCP client to run the built script directly using `node`:
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "your-agent-id",
         "DEFAULT_APP_ID": "your-app-id"
-      },
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory",
-        "delete_memory"
-      ]
+      }
     }
   }
 }
