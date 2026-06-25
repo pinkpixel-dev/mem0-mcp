@@ -1,5 +1,20 @@
 # Memory decisions log
 
+## 2026-06-24 - V0.8.0 Advanced Memory Operations
+
+### What was decided
+Added 7 new advanced memory tools: `batch_update_memories`, `batch_delete_memories` (with `confirm` option), `rate_memory`, `get_memory_event`, `list_memory_events`, `create_memory_export`, and `get_memory_export`.
+
+### Why
+1. Broadens functional coverage to mirror all major Platform V3 capabilities.
+2. Supports batch management, saving user API requests and reducing developer friction.
+3. Incorporates a safety gate on batch delete (`confirm: true` must be supplied) to prevent disastrous data loss scenarios.
+4. Leverages fallback loops for batch delete on self-hosted and local backends where native batch endpoints do not exist.
+
+### What was rejected and why
+1. **Mocking/Stubbing local batch deletes entirely:** Rejected because bulk deletes are highly useful even when running self-hosted Supabase or local testing modes. Simulating bulk deletions via sequential iterative deletes is a robust fallback.
+2. **Batch update support for local/Supabase backends:** Rejected because standard OSS SDKs do not support memory editing or direct updates by query, so there is no reliable way to run this locally without extensive custom vector store rewrites.
+
 ## 2026-06-24 - V0.7.0 Modernization Refactoring
 
 ### What was decided

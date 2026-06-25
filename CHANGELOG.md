@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-06-24
+
+### 🚀 **Phase 2 - Advanced Memory Operations & Safety Gates**
+- **Batch Memory Operations**:
+  - Implemented `batch_update_memories` for bulk updating multiple memory contents (cloud only).
+  - Implemented `batch_delete_memories` supporting both cloud-native batch APIs and self-hosted iterative fallbacks (Supabase/Local).
+  - **Safety Gate**: Added explicit confirmation requirement (`confirm: true`) to prevent accidental bulk deletions.
+- **Memory Quality Evaluation**:
+  - Added `rate_memory` to submit ratings (`positive`, `negative`, `very_negative`) and text reasons on memory records (cloud only).
+- **Manual Event Log Inspections**:
+  - Added `get_memory_event` and `list_memory_events` to retrieve history logs and status details of background async memory extraction tasks (cloud only).
+- **Scoped Export Controls**:
+  - Added `create_memory_export` and `get_memory_export` to kick off and query structured exports using JSON Schema matching (cloud only).
+- **Backend Capability Isolation**:
+  - Automatically restricts unsupported operations on self-hosted/local backends, failing gracefully with clear messages.
+
 ## [0.7.0] - 2026-06-24
 
 ### 🚀 **MAJOR RELEASE - Platform V3 Modernization & Modular Architecture**

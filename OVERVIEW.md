@@ -2,8 +2,8 @@
 
 # @pinkpixel/mem0-mcp Project Overview ✨
 
-**Current Version:** 0.7.0
-**Last Updated:** 2026-06-24T21:00:00Z
+**Current Version:** 0.8.0
+**Last Updated:** 2026-06-24T21:20:00Z
 
 ## Project Summary
 
@@ -54,7 +54,7 @@ The server supports three storage modes:
 
 ## Tools Provided
 
-The server provides 9 modernized tools:
+The server provides 16 modernized & advanced tools:
 
 1. **add_memory**: Stores memories from a text string or structured message arrays (handles async polling).
 2. **search_memories**: Searches memories using semantic and BM25 hybrid filters.
@@ -65,6 +65,13 @@ The server provides 9 modernized tools:
 7. **delete_memory**: Deletes a memory by ID.
 8. **get_memory_history**: Retrieves the audit trail of memory revisions (cloud only).
 9. **get_memory_capabilities**: Reports the capabilities and API features of the active backend.
+10. **batch_update_memories**: Performs bulk updates of multiple memory text records (cloud only).
+11. **batch_delete_memories**: Performs bulk deletions of multiple memories (requires `confirm: true` safety gate).
+12. **rate_memory**: Submits quality evaluation feedback for a memory record (cloud only).
+13. **get_memory_event**: Manually retrieves detail logs of a specific background event job (cloud only).
+14. **list_memory_events**: Lists history logs of background memory processing events (cloud only).
+15. **create_memory_export**: Initiates an async memory export query job (cloud only).
+16. **get_memory_export**: Retrieves status and downloads of a memory export job (cloud only).
 
 ## Dependencies
 
@@ -217,34 +224,27 @@ This is a **production-ready, high-quality MCP server** that demonstrates excell
 ✅ **Security Conscious**: Recent updates addressing CVEs in axios and undici dependencies
 ✅ **User-Focused**: Environment variable fallbacks and multiple installation methods for ease of use
 
-### Recent Improvements (v0.5.0-0.6.1)
-- 🚀 **NEW FEATURE (v0.6.0-0.6.1)**: Added Supabase as a third storage option with persistent storage, free tier, and self-hosting capabilities
-- 🗄️ **Supabase Integration**: Full vector search with pgvector, SQL access, and comprehensive setup documentation
-- 🎯 **BREAKING CHANGE**: Fixed incorrect parameter implementation by replacing `orgId`/`projectId` with correct `agentId`/`appId` parameters
-- 🔧 **Root Cause Resolution**: Addressed fundamental misunderstanding of Mem0 API parameter usage
-- ✅ **Parameter Functionality Confirmed**: app_id and run_id parameters now working correctly (v0.5.4)
-- 📊 **Dashboard Integration**: Parameters appear in Mem0 dashboard Event Details as expected
-- 📝 **Enhanced Documentation**: Comprehensive parameter configuration guide with system prompt recommendations
-- 🚀 **Improved API Compliance**: Now uses correct Mem0 API parameters for proper project scoping
-- 🛡️ **Security updates** addressing high-severity vulnerabilities
+### Recent Improvements (v0.7.0-0.8.0)
+- 🚀 **Phase 2 (v0.8.0)**: Added batch updates/deletes with safety confirmation gates, user rating feedback, async background event inspections, and JSON-Schema memory exports.
+- 🚀 **MAJOR RELEASE (v0.7.0)**: Refactored server into modular provider-adapter pattern under `src/backends/` for decoupled development. Integrated async event polling for V3 additions, and normalized scope parameters into query filters to avoid validation errors.
+- 🚀 **NEW FEATURE (v0.6.0-0.6.1)**: Added Supabase as a third storage option with persistent storage, free tier, and self-hosting capabilities.
+- 🗄️ **Supabase Integration**: Full vector search with pgvector, SQL access, and comprehensive setup documentation.
+- ✅ **Parameter Functionality Confirmed**: app_id and run_id parameters now working correctly (v0.5.4).
+- 📊 **Dashboard Integration**: Parameters appear in Mem0 dashboard Event Details as expected.
+- 🛡️ **Security updates** addressing high-severity vulnerabilities.
 
 ### Minor Areas for Enhancement
-- **Testing Framework**: Could benefit from unit and integration tests
-- **Batch Operations**: Potential for batch memory operations for efficiency
-- **Monitoring & Analytics**: Could add comprehensive logging and usage analytics
+- **Monitoring & Analytics**: Could add comprehensive logging and usage analytics.
 
 ## Future Improvements
 
 Potential areas for future improvement include:
 
-1. **Advanced Filtering**: Expand support for more complex filtering options and search capabilities
-2. **Batch Operations**: Implement batch operations for adding or deleting multiple memories efficiently
-3. **Memory Versioning**: Add support for memory versioning and history tracking
-4. **Enhanced Error Handling**: Improve error handling and recovery mechanisms with more detailed error messages
-5. **Monitoring & Analytics**: Add comprehensive logging, monitoring, and usage analytics capabilities
-6. **Performance Optimization**: Optimize memory search performance and implement caching strategies
-7. **Testing Framework**: Add comprehensive unit and integration tests
-8. **Documentation**: Expand API documentation with more examples and use cases
+1. **Advanced Filtering**: Expand support for more complex filtering options and search capabilities.
+2. **Enhanced Error Handling**: Improve error handling and recovery mechanisms with more detailed error messages.
+3. **Monitoring & Analytics**: Add comprehensive logging, monitoring, and usage analytics capabilities.
+4. **Performance Optimization**: Optimize memory search performance and implement caching strategies.
+5. **Documentation**: Expand API documentation with more examples and use cases.
 
 ## License
 

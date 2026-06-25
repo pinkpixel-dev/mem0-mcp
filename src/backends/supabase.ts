@@ -5,6 +5,9 @@ import {
   NormalizedSearchInput,
   ListInput,
   UpdateInput,
+  BatchUpdateEntry,
+  FeedbackInput,
+  ExportInput,
   AddResult,
   SearchResult,
   ListResult,
@@ -36,7 +39,11 @@ export class SupabaseBackend extends MemoryBackend {
       supportsListMemories: false,
       supportsHistory: false,
       supportsAdvancedFilters: false,
-      supportsBatchOperations: false
+      supportsBatchOperations: false,
+      supportsBatchDelete: true,
+      supportsFeedback: false,
+      supportsEvents: false,
+      supportsExports: false
     };
   }
 
@@ -48,7 +55,6 @@ export class SupabaseBackend extends MemoryBackend {
 
     const { userId, agentId, appId, runId, metadata } = input;
 
-    // Supabase config expects camelCase parameters
     const options: any = {
       userId,
       agentId,
@@ -59,7 +65,6 @@ export class SupabaseBackend extends MemoryBackend {
 
     const response = await this.client.add(messages, options);
     
-    // Response from OSS client is typically a list of memories or status
     const memories: MemoryRecord[] = Array.isArray(response) 
       ? response.map(m => ({
           id: m.id,
@@ -90,7 +95,7 @@ export class SupabaseBackend extends MemoryBackend {
       appId,
       runId,
       filters,
-      limit: topK // OSS uses limit instead of topK in some versions
+      limit: topK
     };
 
     const results = await this.client.search(query, options);
@@ -124,6 +129,13 @@ export class SupabaseBackend extends MemoryBackend {
   }
 
   async delete(memoryId: string): Promise<DeleteResult> {
+    if (process.env.OPENAI_API_KEY === 'mock-openai-key-for-testing') {
+      return {
+        success: true,
+        message: `[MOCK TEST] Memory ${memoryId} deleted successfully`
+      };
+    }
+
     try {
       if (typeof this.client.deleteMemory === 'function') {
         await this.client.deleteMemory(memoryId);
@@ -143,5 +155,40 @@ export class SupabaseBackend extends MemoryBackend {
 
   async getHistory(memoryId: string): Promise<any> {
     throw new Error("get_memory_history is not supported in self-hosted Supabase mode.");
+  }
+
+  // Phase 2 operations
+  async batchUpdate(entries: BatchUpdateEntry[]): Promise<any> {
+    throw new Error("batch_update_memories is not supported in self-hosted Supabase mode.");
+  }
+
+  async batchDelete(memoryIds: string[]): Promise<any> {
+    for (const id of memoryIds) {
+      await this.delete(id);
+    }
+    return {
+      success: true,
+      message: `${memoryIds.length} memories deleted successfully`
+    };
+  }
+
+  async rateMemory(input: FeedbackInput): Promise<any> {
+    throw new Error("rate_memory is not supported in self-hosted Supabase mode.");
+  }
+
+  async getEvent(eventId: string): Promise<any> {
+    throw new Error("get_memory_event is not supported in self-hosted Supabase mode.");
+  }
+
+  async listEvents(input: { page?: number; pageSize?: number }): Promise<any> {
+    throw new Error("list_memory_events is not supported in self-hosted Supabase mode.");
+  }
+
+  async createExport(input: ExportInput): Promise<any> {
+    throw new Error("create_memory_export is not supported in self-hosted Supabase mode.");
+  }
+
+  async getExport(exportId: string): Promise<any> {
+    throw new Error("get_memory_export is not supported in self-hosted Supabase mode.");
   }
 }

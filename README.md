@@ -18,7 +18,7 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
 
 ## Features 🧠
 
-### Modernized Tools (v0.7.0)
+### Modernized & Advanced Tools (v0.8.0)
 *   **`add_memory`**: Stores a memory from text content or structured message arrays.
     *   **Inputs:** `content` (string) or `messages` (array of role/content objects), `userId` (string), `runId` / `sessionId` (string), `agentId` (string), `appId` (string), `metadata` (object), `infer` (boolean), `customInstructions` (string), `waitForCompletion` (boolean, default: true), `timeoutMs` (number, default: 15000)
     *   **Behavior:** Cloud V3 additions are asynchronous. By default, this tool polls the background queue until completed. Pass `waitForCompletion: false` to get the `eventId` immediately.
@@ -38,6 +38,20 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
     *   **Inputs:** `memoryId` (string)
 *   **`get_memory_capabilities`**: Exposes the feature matrix and support flags of the active backend storage mode.
     *   **Inputs:** None
+*   **`batch_update_memories`**: Performs bulk updates of text contents for multiple memories (cloud only).
+    *   **Inputs:** `updates` (array of `{ memoryId: string, text: string }` objects)
+*   **`batch_delete_memories`**: Performs bulk deletions of multiple memories.
+    *   **Inputs:** `memoryIds` (array of strings), `confirm` (boolean, must be `true` to execute)
+*   **`rate_memory`**: Submits quality feedback evaluation for a memory record (cloud only).
+    *   **Inputs:** `memoryId` (string), `feedback` (string: `positive`, `negative`, `very_negative`), `reason` (string, optional)
+*   **`get_memory_event`**: Manually retrieves details of a specific background event job (cloud only).
+    *   **Inputs:** `eventId` (string)
+*   **`list_memory_events`**: Lists history logs of background memory processing events (cloud only).
+    *   **Inputs:** `page` (number), `pageSize` (number)
+*   **`create_memory_export`**: Initiates an asynchronous memory export query job (cloud only).
+    *   **Inputs:** `schema` (object), `filters` (object, optional), `exportInstructions` (string, optional)
+*   **`get_memory_export`**: Retrieves status and download metadata of a memory export job (cloud only).
+    *   **Inputs:** `exportId` (string)
 
 ## Prerequisites 🔑
 

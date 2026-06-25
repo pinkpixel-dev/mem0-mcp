@@ -18,6 +18,10 @@ export interface MemoryCapabilities {
   supportsHistory: boolean;
   supportsAdvancedFilters: boolean;
   supportsBatchOperations: boolean;
+  supportsBatchDelete: boolean;
+  supportsFeedback: boolean;
+  supportsEvents: boolean;
+  supportsExports: boolean;
 }
 
 export interface NormalizedAddInput {
@@ -61,6 +65,23 @@ export interface UpdateInput {
   memoryId: string;
   text?: string;
   metadata?: Record<string, any>;
+}
+
+export interface BatchUpdateEntry {
+  memoryId: string;
+  text: string;
+}
+
+export interface FeedbackInput {
+  memoryId: string;
+  feedback: 'positive' | 'negative' | 'very_negative';
+  reason?: string;
+}
+
+export interface ExportInput {
+  schema: Record<string, any>;
+  filters?: Record<string, any>;
+  exportInstructions?: string;
 }
 
 export interface AddResult {

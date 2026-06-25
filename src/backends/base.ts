@@ -4,6 +4,9 @@ import {
   NormalizedSearchInput,
   ListInput,
   UpdateInput,
+  BatchUpdateEntry,
+  FeedbackInput,
+  ExportInput,
   AddResult,
   SearchResult,
   ListResult,
@@ -21,4 +24,13 @@ export abstract class MemoryBackend {
   abstract update(input: UpdateInput): Promise<MemoryRecord>;
   abstract delete(memoryId: string): Promise<DeleteResult>;
   abstract getHistory?(memoryId: string): Promise<any>;
+
+  // Phase 2 operations
+  abstract batchUpdate(entries: BatchUpdateEntry[]): Promise<any>;
+  abstract batchDelete(memoryIds: string[]): Promise<any>;
+  abstract rateMemory(input: FeedbackInput): Promise<any>;
+  abstract getEvent(eventId: string): Promise<any>;
+  abstract listEvents(input: { page?: number; pageSize?: number }): Promise<any>;
+  abstract createExport(input: ExportInput): Promise<any>;
+  abstract getExport(exportId: string): Promise<any>;
 }

@@ -5,6 +5,9 @@ import {
   NormalizedSearchInput,
   ListInput,
   UpdateInput,
+  BatchUpdateEntry,
+  FeedbackInput,
+  ExportInput,
   AddResult,
   SearchResult,
   ListResult,
@@ -38,7 +41,11 @@ export class CloudBackend extends MemoryBackend {
       supportsListMemories: true,
       supportsHistory: true,
       supportsAdvancedFilters: true,
-      supportsBatchOperations: true
+      supportsBatchOperations: true,
+      supportsBatchDelete: true,
+      supportsFeedback: true,
+      supportsEvents: true,
+      supportsExports: true
     };
   }
 
@@ -242,6 +249,99 @@ export class CloudBackend extends MemoryBackend {
 
   async getHistory(memoryId: string): Promise<any> {
     const response = await this.client.history(memoryId);
+    return response;
+  }
+
+  // Phase 2 operations
+  async batchUpdate(entries: BatchUpdateEntry[]): Promise<any> {
+    const memories = entries.map(e => ({
+      memoryId: e.memoryId,
+      text: e.text
+    }));
+    const response = await this.client.batchUpdate(memories);
+    return { message: response };
+  }
+
+  async batchDelete(memoryIds: string[]): Promise<any> {
+    const response = await this.client.batchDelete(memoryIds);
+    return { message: response };
+  }
+
+  async rateMemory(input: FeedbackInput): Promise<any> {
+    const { memoryId, feedback, reason } = input;
+    
+    let sdkFeedback: any;
+    switch (feedback.toUpperCase()) {
+      case 'POSITIVE':
+        sdkFeedback = 'POSITIVE';
+        break;
+      case 'NEGATIVE':
+        sdkFeedback = 'NEGATIVE';
+        break;
+      case 'VERY_NEGATIVE':
+        sdkFeedback = 'VERY_NEGATIVE';
+        break;
+      default:
+        throw new Error(`Invalid feedback value: ${feedback}. Must be 'positive', 'negative', or 'very_negative'.`);
+    }
+
+    const response = await this.client.feedback({
+      memoryId,
+      feedback: sdkFeedback,
+      feedbackReason: reason
+    });
+    return response;
+  }
+
+  async getEvent(eventId: string): Promise<any> {
+    const host = this.client.host || "https://api.mem0.ai";
+    const res = await fetch(`${host}/v1/event/${eventId}/`, {
+      headers: {
+        'Authorization': `Token ${this.apiKey}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Failed to get event details: ${res.statusText} - ${errorText}`);
+    }
+    return await res.json();
+  }
+
+  async listEvents(input: { page?: number; pageSize?: number }): Promise<any> {
+    const host = this.client.host || "https://api.mem0.ai";
+    const params = new URLSearchParams();
+    if (input.page !== undefined) params.append("page", input.page.toString());
+    if (input.pageSize !== undefined) params.append("page_size", input.pageSize.toString());
+
+    const url = `${host}/v1/events/${params.toString() ? `?${params.toString()}` : ''}`;
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Token ${this.apiKey}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Failed to list events: ${res.statusText} - ${errorText}`);
+    }
+    return await res.json();
+  }
+
+  async createExport(input: ExportInput): Promise<any> {
+    const { schema, filters = {} } = input;
+    const response = await this.client.createMemoryExport({
+      schema,
+      filters,
+      exportInstructions: input.exportInstructions
+    });
+    return response;
+  }
+
+  async getExport(exportId: string): Promise<any> {
+    const response = await this.client.getMemoryExport({
+      memoryExportId: exportId
+    });
     return response;
   }
 }

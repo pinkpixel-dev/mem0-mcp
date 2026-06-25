@@ -53,7 +53,7 @@ class Mem0MCPServer {
     this.server = new Server(
       {
         name: "@pinkpixel/mem0-mcp",
-        version: "0.7.0",
+        version: "0.8.0",
       },
       {
         capabilities: {
@@ -401,6 +401,123 @@ class Mem0MCPServer {
               type: "object",
               properties: {}
             }
+          },
+          // Phase 2 tools
+          {
+            name: "batch_update_memories",
+            description: "Performs bulk updates of text contents for multiple memories (cloud only).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                updates: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      memoryId: { type: "string", description: "The memory record ID." },
+                      text: { type: "string", description: "The updated memory text." }
+                    },
+                    required: ["memoryId", "text"]
+                  },
+                  description: "Array of update records."
+                }
+              },
+              required: ["updates"]
+            }
+          },
+          {
+            name: "batch_delete_memories",
+            description: "Performs bulk deletions of multiple memories.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                memoryIds: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "List of memory record IDs to delete."
+                },
+                confirm: {
+                  type: "boolean",
+                  description: "Must be set to true to execute the bulk deletion."
+                }
+              },
+              required: ["memoryIds", "confirm"]
+            }
+          },
+          {
+            name: "rate_memory",
+            description: "Submits quality feedback evaluation for a memory record (cloud only).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                memoryId: { type: "string", description: "The memory record ID." },
+                feedback: {
+                  type: "string",
+                  enum: ["positive", "negative", "very_negative"],
+                  description: "Quality evaluation rating."
+                },
+                reason: {
+                  type: "string",
+                  description: "Optional details describing the reasoning for the score."
+                }
+              },
+              required: ["memoryId", "feedback"]
+            }
+          },
+          {
+            name: "get_memory_event",
+            description: "Manually retrieves detail logs of a specific background event job (cloud only).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                eventId: { type: "string", description: "The event identifier." }
+              },
+              required: ["eventId"]
+            }
+          },
+          {
+            name: "list_memory_events",
+            description: "Lists history logs of background memory processing events (cloud only).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                page: { type: "number", default: 1 },
+                pageSize: { type: "number", default: 25 }
+              }
+            }
+          },
+          {
+            name: "create_memory_export",
+            description: "Kicks off an async memory export query job (cloud only).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                schema: {
+                  type: "object",
+                  description: "JSON schema describing the desired structured shape of the export."
+                },
+                filters: {
+                  type: "object",
+                  description: "Entity/metadata scope filters to constrain target memories."
+                },
+                exportInstructions: {
+                  type: "string",
+                  description: "Optional custom natural language guidance for the export structure."
+                }
+              },
+              required: ["schema"]
+            }
+          },
+          {
+            name: "get_memory_export",
+            description: "Retrieves status and downloads of a memory export job (cloud only).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                exportId: { type: "string", description: "The export job identifier." }
+              },
+              required: ["exportId"]
+            }
           }
         ]
       };
@@ -501,6 +618,70 @@ class Mem0MCPServer {
 
           case "get_memory_capabilities": {
             const result = await this.backend.getCapabilities();
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+            };
+          }
+
+          // Phase 2 operations
+          case "batch_update_memories": {
+            const result = await this.backend.batchUpdate(args.updates as any[]);
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+            };
+          }
+
+          case "batch_delete_memories": {
+            if (args.confirm !== true) {
+              throw new McpError(ErrorCode.InvalidParams, "Bulk deletion aborted. Parameter 'confirm' must be explicitly set to true.");
+            }
+            const result = await this.backend.batchDelete(args.memoryIds as string[]);
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+            };
+          }
+
+          case "rate_memory": {
+            const result = await this.backend.rateMemory({
+              memoryId: args.memoryId as string,
+              feedback: args.feedback as any,
+              reason: args.reason as string
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+            };
+          }
+
+          case "get_memory_event": {
+            const result = await this.backend.getEvent(args.eventId as string);
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+            };
+          }
+
+          case "list_memory_events": {
+            const result = await this.backend.listEvents({
+              page: args.page as number,
+              pageSize: args.pageSize as number
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+            };
+          }
+
+          case "create_memory_export": {
+            const result = await this.backend.createExport({
+              schema: args.schema as any,
+              filters: args.filters as any,
+              exportInstructions: args.exportInstructions as string
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+            };
+          }
+
+          case "get_memory_export": {
+            const result = await this.backend.getExport(args.exportId as string);
             return {
               content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
             };

@@ -7,11 +7,11 @@
 - [x] Map top-level entity scope queries into nested `filters` in V3 search and list.
 - [x] Expose `list_memories`, `get_memory`, `update_memory`, `get_memory_history`, and `get_memory_capabilities`.
 
-## Phase 2: Advanced Memory Operations
-- [ ] Add `batch_update_memories` and `batch_delete_memories` tools (requiring an explicit `confirm: true` option).
-- [ ] Add `rate_memory` to submit user feedback (positive/negative/very_negative) on memory records.
-- [ ] Add `get_memory_event` and `list_memory_events` to manually inspect async queue tasks.
-- [ ] Implement `create_memory_export` and `get_memory_export` for exporting scoped memory bases.
+## Phase 2: Advanced Memory Operations (Done)
+- [x] Add `batch_update_memories` and `batch_delete_memories` tools (requiring an explicit `confirm: true` option).
+- [x] Add `rate_memory` to submit user feedback (positive/negative/very_negative) on memory records.
+- [x] Add `get_memory_event` and `list_memory_events` to manually inspect async queue tasks.
+- [x] Implement `create_memory_export` and `get_memory_export` for exporting scoped memory bases.
 
 ## Phase 3: Developer & Admin Features
 - [ ] Expose cloud project settings (e.g. enabling memory decay config).
