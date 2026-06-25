@@ -134,3 +134,10 @@ memory.db
 vector_store.db
 *.db
 mem0-docs/
+
+# Other
+ERRORS.md
+MEMORY.md
+OVERVIEW.md
+ROADMAP.md
+update-server.md
