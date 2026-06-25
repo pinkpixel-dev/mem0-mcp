@@ -227,12 +227,7 @@ generate_config() {
     "mem0-mcp": {
       "command": "${COMMAND}",
       "args": ${ARGS},
-      "env": ${ENV_SECTION},
-      "disabled": false,
-      "alwaysAllow": [
-        "add_memory",
-        "search_memory"
-      ]
+      "env": ${ENV_SECTION}
     }
   }
 }

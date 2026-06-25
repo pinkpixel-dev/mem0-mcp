@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.0.0] - 2026-06-24
+## [0.7.0] - 2026-06-24
 
 ### 🚀 **MAJOR RELEASE - Platform V3 Modernization & Modular Architecture**
 - **Upgraded SDK & Protocol** - Bumped `mem0ai` to `3.0.10` and `@modelcontextprotocol/sdk` to `1.29.0` for full compatibility with modern V3 memory pipelines.

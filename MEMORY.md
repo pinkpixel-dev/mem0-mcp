@@ -1,6 +1,6 @@
 # Memory decisions log
 
-## 2026-06-24 - V1.0.0 Modernization Refactoring
+## 2026-06-24 - V0.7.0 Modernization Refactoring
 
 ### What was decided
 Refactored the codebase from a monolithic `src/index.ts` to a modular multi-file provider-adapter architecture under `src/backends/`. Upgraded to `mem0ai@3.0.10` and `@modelcontextprotocol/sdk@1.29.0`.

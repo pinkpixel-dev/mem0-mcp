@@ -53,7 +53,7 @@ class Mem0MCPServer {
     this.server = new Server(
       {
         name: "@pinkpixel/mem0-mcp",
-        version: "1.0.0",
+        version: "0.7.0",
       },
       {
         capabilities: {

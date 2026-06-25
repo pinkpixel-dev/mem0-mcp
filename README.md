@@ -18,21 +18,26 @@ This server uses the `mem0ai` Node.js SDK for its core functionality.
 
 ## Features 🧠
 
-### Tools
-*   **`add_memory`**: Stores a piece of text content as a memory associated with a specific `userId`.
-    *   **Required:** `content` (string), `userId` (string)
-    *   **Optional:** `sessionId` (string), `agentId` (string), `appId` (string), `metadata` (object)
-    *   **Advanced (Cloud API):** `includes` (string), `excludes` (string), `infer` (boolean), `outputFormat` (string), `customCategories` (object), `customInstructions` (string), `immutable` (boolean), `expirationDate` (string)
-    *   Stores the provided text, enabling recall in future interactions.
-*   **`search_memory`**: Searches stored memories based on a natural language query for a specific `userId`.
-    *   **Required:** `query` (string), `userId` (string)
-    *   **Optional:** `sessionId` (string), `agentId` (string), `appId` (string), `filters` (object), `threshold` (number)
-    *   **Advanced (Cloud API):** `topK` (number), `fields` (array), `rerank` (boolean), `keywordSearch` (boolean), `filterMemories` (boolean)
-    *   Retrieves relevant memories based on semantic similarity.
-*   **`delete_memory`**: Deletes a specific memory from storage by its ID.
-    *   **Required:** `memoryId` (string), `userId` (string)
-    *   **Optional:** `agentId` (string), `appId` (string)
-    *   Permanently removes the specified memory.
+### Modernized Tools (v0.7.0)
+*   **`add_memory`**: Stores a memory from text content or structured message arrays.
+    *   **Inputs:** `content` (string) or `messages` (array of role/content objects), `userId` (string), `runId` / `sessionId` (string), `agentId` (string), `appId` (string), `metadata` (object), `infer` (boolean), `customInstructions` (string), `waitForCompletion` (boolean, default: true), `timeoutMs` (number, default: 15000)
+    *   **Behavior:** Cloud V3 additions are asynchronous. By default, this tool polls the background queue until completed. Pass `waitForCompletion: false` to get the `eventId` immediately.
+*   **`search_memories`**: Searches memories using semantic and BM25 hybrid filters.
+    *   **Inputs:** `query` (string), `userId` (string), `runId` / `sessionId` (string), `agentId` (string), `appId` (string), `filters` (object), `threshold` (number), `topK` (number), `rerank` (boolean), `referenceDate` (string)
+    *   **Behavior:** Automatically nests scope variables inside the V3 `filters` block to prevent API validation errors.
+*   **`search_memory`**: Backward-compatible alias for `search_memories`.
+*   **`list_memories`**: Paginated listing of memory records scoped by identifiers.
+    *   **Inputs:** `userId` (string), `runId` / `sessionId` (string), `agentId` (string), `appId` (string), `filters` (object), `page` (number), `pageSize` (number)
+*   **`get_memory`**: Retrieves a single memory record by its ID.
+    *   **Inputs:** `memoryId` (string)
+*   **`update_memory`**: Modifies the text or metadata of an existing memory.
+    *   **Inputs:** `memoryId` (string), `text` (string), `metadata` (object)
+*   **`delete_memory`**: Deletes a specific memory record by ID.
+    *   **Inputs:** `memoryId` (string)
+*   **`get_memory_history`**: Retrieves the audit trail of memory revisions (cloud only).
+    *   **Inputs:** `memoryId` (string)
+*   **`get_memory_capabilities`**: Exposes the feature matrix and support flags of the active backend storage mode.
+    *   **Inputs:** None
 
 ## Prerequisites 🔑
 
@@ -575,124 +580,24 @@ npm run inspector
 
 ## Technical Implementation Notes 🔧
 
-### Advanced Mem0 API Parameters
+### 1. Platform V3 Async Additions & Polling
+Mem0 Cloud V3 addition is an asynchronous background task. When calling `add_memory`, the server submits the request to `/v3/memories/add/` and receives an `eventId`. 
+* **Synchronous Polling (Default):** The server polls the event status endpoint (`/v1/event/{id}/`) every 500ms for up to `timeoutMs` (default `15000`ms) until the status becomes `SUCCEEDED` or `FAILED`. Once resolved, it returns the final outcome.
+* **Asynchronous Execution:** Pass `"waitForCompletion": false` to bypass polling. The server will immediately return the `eventId` and a `PENDING` status.
 
-When using the Cloud Storage mode with the Mem0 API, you can leverage additional parameters for more sophisticated memory management. While not explicitly exposed in the tool schema, these can be included in the `metadata` object when adding memories:
+### 2. Nested V3 Filter Normalization
+The Mem0 Cloud V3 search and list endpoints reject top-level scope IDs (`user_id`, `agent_id`, `app_id`, `run_id`) and return an HTTP 400 error. V3 requires these fields inside the nested `filters` object.
+To prevent breaking client configurations, this server automatically normalizes top-level scope variables (`userId`, `agentId`, `appId`, `runId`/`sessionId`) and merges them into the nested `filters` object under the hood before sending the API request.
 
-#### Advanced Parameters for `add_memory`:
+### 3. Capability Gating
+Different backends support different feature sets. Call `get_memory_capabilities` to get a structured capability matrix of the active backend.
+* **Cloud Mode:** Fully supports all features (`apiVersion: "v3"`, async events, listing, audit histories, logical queries).
+* **Supabase / Local Modes:** Standard V1 vector interfaces. Unsupported cloud-specific tools (like `get_memory_history` or `list_memories`) will fail gracefully with clear feature-unavailable messages.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `metadata` | object | Store additional context about the memory (e.g., location, time, identifiers). This can be used for filtering during retrieval. |
-| `includes` | string | Specific preferences to include in the memory. |
-| `excludes` | string | Specific preferences to exclude from the memory. |
-| `infer` | boolean | Whether to infer memories or directly store messages (default: true). |
-| `output_format` | string | Format version, either v1.0 (default, deprecated) or v1.1 (recommended). |
-| `custom_categories` | object | List of categories with names and descriptions. |
-| `custom_instructions` | string | Project-specific guidelines for handling and organizing memories. |
-| `immutable` | boolean | Whether the memory is immutable (default: false). |
-| `expiration_date` | string | When the memory will expire (format: YYYY-MM-DD). |
-| `org_id` | string | Organization ID associated with this memory. |
-| `project_id` | string | Project ID associated with this memory. |
-| `version` | string | Memory version (v1 is deprecated, v2 recommended for new applications). |
-
-To use these parameters with the MCP server, include them in your metadata object when calling the `add_memory` tool. For example:
-
-```json
-{
-  "content": "Important information to remember",
-  "userId": "user123",
-  "sessionId": "project-abc",
-  "metadata": {
-    "includes": "important context",
-    "excludes": "sensitive data",
-    "immutable": true,
-    "expiration_date": "2025-12-31",
-    "custom_instructions": "Prioritize this memory for financial questions",
-    "version": "v2"
-  }
-}
-```
-
-#### Advanced Parameters for `search_memory`:
-
-The Mem0 v2 search API offers powerful filtering capabilities that can be utilized through the `filters` parameter:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `filters` | object | Complex filters with logical operators and comparison conditions |
-| `top_k` | integer | Number of top results to return (default: 10) |
-| `fields` | string[] | Specific fields to include in the response |
-| `rerank` | boolean | Whether to rerank the memories (default: false) |
-| `keyword_search` | boolean | Whether to search based on keywords (default: false) |
-| `filter_memories` | boolean | Whether to filter the memories (default: false) |
-| `threshold` | number | Minimum similarity threshold for results (default: 0.3) |
-| `org_id` | string | Organization ID for filtering memories |
-| `project_id` | string | Project ID for filtering memories |
-
-The `filters` parameter supports complex logical operations (AND, OR) and various comparison operators:
-
-| Operator | Description |
-|----------|-------------|
-| `in` | Matches any of the values specified |
-| `gte` | Greater than or equal to |
-| `lte` | Less than or equal to |
-| `gt` | Greater than |
-| `lt` | Less than |
-| `ne` | Not equal to |
-| `icontains` | Case-insensitive containment check |
-
-Example of using complex filters with the `search_memory` tool:
-
-```json
-{
-  "query": "What are Alice's hobbies?",
-  "userId": "user123",
-  "filters": {
-    "AND": [
-      {
-        "user_id": "alice"
-      },
-      {
-        "agent_id": {"in": ["travel-agent", "sports-agent"]}
-      }
-    ]
-  },
-  "threshold": 0.5,
-  "top_k": 5
-}
-```
-
-This would search for memories related to Alice's hobbies where the user_id is "alice" AND the agent_id is either "travel-agent" OR "sports-agent", returning at most 5 results with a similarity score of at least 0.5.
-
-For more detailed information on these parameters, refer to the [Mem0 API documentation](https://mem0.ai).
-
-### SafeLogger
-
-The MCP server implements a `SafeLogger` class that selectively redirects console.log calls from the mem0ai library to stderr without disrupting MCP protocol:
-
-- Intercepts console.log calls and examines stack traces to determine source
-- Only redirects log calls from mem0ai library or our own code
-- Preserves clean stdout for MCP protocol communication
-- Automatically cleans up resources on process exit
-
-This allows proper functioning within MCP clients while maintaining useful debug information.
-
-### Environment Variables
-
-The server recognizes several environment variables that control its behavior:
-
-- `MEM0_API_KEY`: API key for cloud storage mode
-- `OPENAI_API_KEY`: API key for local storage mode (embeddings)
-- `DEFAULT_USER_ID`: Default user ID for memory operations
-- `DEFAULT_AGENT_ID`: Default agent ID for identifying the LLM/agent
-- `DEFAULT_APP_ID`: Default app ID for project scoping
-
-**Important Notes:**
-- **Session IDs** are passed as tool parameters (e.g., `"sessionId": "my-session"`), not environment variables
-- When using the tools, parameters provided directly (e.g., `agentId`, `appId`, `sessionId`) take precedence over environment variables, giving you maximum flexibility
-- **org_id and project_id are set automatically by Mem0** and cannot be changed by users - use `appId` for project scoping instead
+### 4. Logging & Protocol Stability
+MCP servers communicate using JSON-RPC over `stdout`. Any unexpected library logs printed to `stdout` will corrupt the protocol channel and cause clients to crash.
+This server overrides the default `console` output methods (such as `console.log`) to redirect/mute standard logging, ensuring clean stdio communication.
 
 ---
 
-Made with ❤️ by Pink Pixel
+Made with 💖 by Pink Pixel

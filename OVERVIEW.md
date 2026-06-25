@@ -2,7 +2,7 @@
 
 # @pinkpixel/mem0-mcp Project Overview ✨
 
-**Current Version:** 1.0.0
+**Current Version:** 0.7.0
 **Last Updated:** 2026-06-24T21:00:00Z
 
 ## Project Summary
